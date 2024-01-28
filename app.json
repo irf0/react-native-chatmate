@@ -1,11 +1,17 @@
 {
   "expo": {
-    "name": "VideoCallingApp",
-    "slug": "VideoCallingApp",
+    "name": "ChatMate",
+    "slug": "chat-mate-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "plugins": [
+      "@react-native-firebase/app", 
+      "@react-native-firebase/auth",
+      "expo-image-picker",
+      "expo-build-properties"
+      ],
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
