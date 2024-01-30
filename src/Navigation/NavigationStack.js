@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity } from "react-native";
+import { View, Text, TouchableOpacity, Alert } from "react-native";
 import React, { useEffect, useState } from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import Home from "../Screens/Home";
@@ -12,12 +12,15 @@ import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityI
 import Entypo from "react-native-vector-icons/Entypo";
 import Search from "../Screens/Search";
 import { useNavigation } from "@react-navigation/native";
+import { FIREBASE_AUTH } from "../../Firebase";
+import ChatScreen from "../Screens/ChatScreen";
 
 const Stack = createNativeStackNavigator();
 
 const NavigationStack = () => {
   const navigation = useNavigation();
   const [isUserLoggedin, setIsUserLoggedin] = useState(false);
+  const [showBtn, setShowBtn] = useState(false);
 
   const getData = async () => {
     try {
@@ -33,9 +36,17 @@ const NavigationStack = () => {
     console.log("from stackNav", isUserLoggedin);
   }, []);
 
+  const showUserInfoBtn = () => {
+    setShowBtn(!showBtn);
+  };
+
+  const logout = () => {
+    navigation.navigate("UserInfo");
+  };
+
   return (
     <>
-      {isUserLoggedin === "true" ? (
+      {isUserLoggedin === "true" && (
         <Stack.Navigator initialRouteName="Home">
           <Stack.Screen
             name="Home"
@@ -63,13 +74,40 @@ const NavigationStack = () => {
                       style={{ fontWeight: "bold" }}
                     />
                   </TouchableOpacity>
-                  <TouchableOpacity>
+                  <TouchableOpacity onPress={() => showUserInfoBtn()}>
                     <Entypo
                       name="dots-three-vertical"
                       size={20}
                       color="white"
                     />
                   </TouchableOpacity>
+                  {showBtn && (
+                    <View
+                      style={{
+                        height: 50,
+                        width: 100,
+                        backgroundColor: "white",
+                        padding: 10,
+                        marginRight: 18,
+                        borderRadius: 9,
+                        position: "absolute",
+                        right: 10,
+                        alignItems: "center",
+                        zIndex: 50,
+                      }}
+                    >
+                      <TouchableOpacity onPress={logout}>
+                        <Text
+                          style={{
+                            textAlignVertical: "center",
+                            textAlign: "center",
+                          }}
+                        >
+                          Profile
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </>
               ),
 
@@ -97,20 +135,47 @@ const NavigationStack = () => {
                 elevation: 0,
                 backgroundColor: "#5b41f0",
               },
-              headerLeft: () => <TouchableOpacity>{""}</TouchableOpacity>,
+              headerTintColor: "white",
+            }}
+          />
+          <Stack.Screen
+            name="ChatScreen"
+            component={ChatScreen}
+            options={{
+              headerShadowVisible: false,
+              headerBackTitleVisible: false,
+              headerShown: true,
+              title: "",
+              headerTitleStyle: {
+                color: "#fff",
+              },
+              headerTitleAlign: "center",
+              headerStyle: {
+                elevation: 0,
+                backgroundColor: "#5b41f0",
+              },
+              headerTintColor: "white",
             }}
           />
           <Stack.Screen
             name="UserInfo"
             component={UserInfo}
-            options={{ headerShown: true }}
+            options={{
+              headerShown: true,
+              headerTitle: "My Account",
+              headerStyle: {
+                elevation: 0,
+                backgroundColor: "#5b41f0",
+              },
+              headerTintColor: "#fff",
+              headerTitleStyle: {
+                color: "#fff",
+              },
+            }}
           />
-        </Stack.Navigator>
-      ) : (
-        <Stack.Navigator initialRouteName="Login">
           <Stack.Screen
-            name="Registration"
-            component={Registration}
+            name="Login"
+            component={Login}
             options={{
               headerShown: true,
               headerStyle: {
@@ -124,8 +189,8 @@ const NavigationStack = () => {
             }}
           />
           <Stack.Screen
-            name="Login"
-            component={Login}
+            name="Registration"
+            component={Registration}
             options={{
               headerShown: true,
               headerStyle: {
@@ -155,6 +220,116 @@ const NavigationStack = () => {
           />
         </Stack.Navigator>
       )}
+      {isUserLoggedin === "false" ||
+        (isUserLoggedin === null && (
+          <Stack.Navigator initialRouteName="Login">
+            <Stack.Screen
+              name="Registration"
+              component={Registration}
+              options={{
+                headerShown: true,
+                headerStyle: {
+                  elevation: 0,
+                  backgroundColor: "#5b41f0",
+                },
+                headerTitleStyle: {
+                  color: "#fff",
+                },
+                headerLeft: () => <TouchableOpacity>{""}</TouchableOpacity>,
+              }}
+            />
+            <Stack.Screen
+              name="Login"
+              component={Login}
+              options={{
+                headerShown: true,
+                headerStyle: {
+                  elevation: 0,
+                  backgroundColor: "#5b41f0",
+                },
+                headerTitleStyle: {
+                  color: "#fff",
+                },
+                headerLeft: () => <TouchableOpacity>{""}</TouchableOpacity>,
+              }}
+            />
+            <Stack.Screen
+              name="Verification"
+              component={OTP}
+              options={{
+                headerShown: true,
+                headerStyle: {
+                  elevation: 0,
+                  backgroundColor: "#5b41f0",
+                },
+                headerTitleStyle: {
+                  color: "#fff",
+                },
+                headerLeft: () => <TouchableOpacity>{""}</TouchableOpacity>,
+              }}
+            />
+            <Stack.Screen
+              name="Home"
+              component={Home}
+              options={{
+                headerShadowVisible: false,
+                headerBackTitleVisible: false,
+                headerShown: true,
+                title: "ChatMate",
+
+                headerStyle: {
+                  elevation: 0,
+                  backgroundColor: "#5b41f0",
+                },
+                headerRight: () => (
+                  <>
+                    <TouchableOpacity
+                      onPress={() => navigation.navigate("Search")}
+                      style={{ marginRight: 12 }}
+                    >
+                      <MaterialCommunityIcons
+                        name="magnify"
+                        size={23}
+                        color="white"
+                        style={{ fontWeight: "bold" }}
+                      />
+                    </TouchableOpacity>
+                    <TouchableOpacity>
+                      <Entypo
+                        name="dots-three-vertical"
+                        size={20}
+                        color="white"
+                      />
+                    </TouchableOpacity>
+                    <View
+                      style={{
+                        height: 50,
+                        width: 100,
+                        backgroundColor: "white",
+                        padding: 10,
+                        borderRadius: 9,
+                        position: "absolute",
+                        right: 10,
+                        alignItems: "center",
+                        zIndex: 50,
+                      }}
+                    >
+                      <TouchableOpacity onPress={logout}>
+                        <Text>Sign Out</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </>
+                ),
+
+                headerTintColor: "#fff",
+                headerTitleStyle: {
+                  fontWeight: "bold",
+                  fontSize: responsiveFontSize(2.9),
+                },
+              }}
+            />
+          </Stack.Navigator>
+        ))}
     </>
   );
 };

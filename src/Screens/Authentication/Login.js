@@ -22,6 +22,7 @@ import {
   FirebaseRecaptchaVerifierModal,
 } from "expo-firebase-recaptcha";
 import { collection, getDocs, query, where } from "firebase/firestore";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCgng2kPB9is2IraBSCPDrE42gDpfJHoko",
@@ -65,7 +66,9 @@ const Login = ({ navigation, newDocRefId }) => {
       const querySnapshot = await getDocs(q);
       if (!querySnapshot.empty) {
         const userData = querySnapshot.docs[0].data();
-
+        AsyncStorage.setItem("PHONE", userData?.phone);
+        AsyncStorage.setItem("NAME", userData?.name);
+        AsyncStorage.setItem("PROFILEPIC", userData?.profilePic);
         try {
           const verificationId = await phoneProvider.verifyPhoneNumber(
             phoneNumber,

@@ -60,7 +60,6 @@ const OTP = ({ navigation, route }) => {
   const info = route.params;
   const verificationId = info.verificationId;
   const phoneNumber = info.phoneNumber;
-  const newDocRefId = info.newDocRefId;
 
   const verifyOTP = async (data) => {
     setClicked(true);
@@ -78,7 +77,7 @@ const OTP = ({ navigation, route }) => {
       await AsyncStorage.setItem("isLoggedIn", JSON.stringify(true));
       ToastAndroid.show("User Verified Successfully", ToastAndroid.SHORT);
       setLoading(false);
-      navigation.navigate("Home");
+      await navigation.navigate("Home");
       setClicked(false);
     } catch (err) {
       console.log("An error occurred while login", err);

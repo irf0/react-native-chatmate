@@ -32,6 +32,7 @@ import { Avatar } from "react-native-elements";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const Registration = ({ navigation }) => {
   const { control, handleSubmit, watch } = useForm();
@@ -49,6 +50,7 @@ const Registration = ({ navigation }) => {
   const [userName, setUserName] = useState("");
   const [userPhone, setUserPhone] = useState(null);
   const [selfieURL, setSelfieURL] = useState("");
+  const [selfieUploading, setSelfieUploading] = useState(false);
 
   const onSelect = (selectedCountry) => {
     setCountryCode(selectedCountry.cca2);
@@ -65,13 +67,14 @@ const Registration = ({ navigation }) => {
   };
 
   const date = new Timestamp.now();
-  // const time = date.seconds;
-  // const q = "NU";
-  // let uniqueID = q.concat(time);
+  const time = date.seconds;
+  const q = "NU";
+  let uniqueID = q.concat(time);
 
   const ProceedtoVerificationDetails = async (data) => {
-    if (userName == "" || userPhone == "") {
+    if (userName == "" || userPhone == "" || loading) {
       Alert.alert("Enter All the Fields!");
+      return;
     } else {
       setLoading(true);
       if (countryCode === "") {
@@ -95,23 +98,21 @@ const Registration = ({ navigation }) => {
         const Fullphone = `${plus}${country?.callingCode}`.concat(userPhone);
 
         try {
-          setLoading(true);
-          const myDoc = collection(FIREBASE_DB, "users");
-          const newDocRef = await addDoc(myDoc, {
+          const myDoc = doc(FIREBASE_DB, "users", uniqueID);
+          const newDocRef = await setDoc(myDoc, {
             name: userName,
             phone: Fullphone,
             profilePic: selfieURL,
             createdAt: date,
+            uniqueID: uniqueID,
+            friendsList: [],
           });
-          if (newDocRef) {
-            setLoading(false);
-            ToastAndroid.show(
-              "Account Created Successfully",
-              ToastAndroid.SHORT
-            );
-            // console.log("Document written with ID: ", newDocRef.id);
-            navigation.navigate("Login", { newDocRefId: newDocRef?.id });
-          }
+
+          ToastAndroid.show("Account Created Successfully", ToastAndroid.SHORT);
+          await AsyncStorage.setItem("docID", uniqueID);
+          navigation.navigate("Login", { newDocRefId: uniqueID });
+          console.log("docID", uniqueID);
+          setLoading(false);
         } catch (error) {
           console.log("Error", error);
           Alert.alert("Error", "An Unexpected Error occured. Kindly try again");
@@ -125,7 +126,7 @@ const Registration = ({ navigation }) => {
     // No permissions request is necessary for launching the image library
     let result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.All,
-      allowsEditing: true,
+      allowsEditing: false,
       aspect: [4, 3],
       quality: 1,
     });
@@ -140,6 +141,7 @@ const Registration = ({ navigation }) => {
 
   const uploadSelfie = async (uri, name) => {
     const blob = await new Promise((resolve, reject) => {
+      setSelfieUploading(true);
       const xhr = new XMLHttpRequest();
       xhr.onload = function () {
         resolve(xhr.response);
@@ -159,7 +161,7 @@ const Registration = ({ navigation }) => {
     uploadBytes(storageRef, blob)
       .then(() => {
         console.warn("Selfie Upload Successfull");
-        setLoading(false);
+        setSelfieUploading(false);
 
         getDownloadURL(storageRef)
           .then((url) => {
@@ -255,38 +257,48 @@ const Registration = ({ navigation }) => {
           />
         </View>
 
-        <Avatar
-          containerStyle={{
-            height: 100,
-            width: 100,
-            alignSelf: "flex-start",
-            marginLeft: 20,
-            marginTop: 18,
-            borderWidth: 2,
-            borderColor: "#fff",
-            backgroundColor: "white",
-            borderRadius: 70,
-          }}
-          rounded
-          avatarStyle={{ borderRadius: 70 }}
-          source={
-            selfieURL
-              ? { uri: selfieURL }
-              : require("../../../assets/avatar-icon.png")
-          }
-        >
-          <Avatar.Accessory
-            color="white"
-            size={40}
-            style={{ backgroundColor: "#5b41f0" }}
-            onPress={openGallery}
-          />
-        </Avatar>
+        {selfieUploading ? (
+          <View style={{ marginTop: 35 }}>
+            <ActivityIndicator color={"#5b41f0"} size={"large"} />
+            <Text style={{ textAlign: "center", color: "white" }}>
+              Photo Uploading...
+            </Text>
+          </View>
+        ) : (
+          <Avatar
+            containerStyle={{
+              height: 100,
+              width: 100,
+              alignSelf: "flex-start",
+              marginLeft: 20,
+              marginTop: 18,
+              borderWidth: 2,
+              borderColor: "#fff",
+              backgroundColor: "white",
+              borderRadius: 70,
+            }}
+            rounded
+            avatarStyle={{ borderRadius: 70 }}
+            source={
+              selfieURL
+                ? { uri: selfieURL }
+                : require("../../../assets/avatar-icon.png")
+            }
+          >
+            <Avatar.Accessory
+              color="white"
+              size={40}
+              style={{ backgroundColor: "#5b41f0" }}
+              onPress={openGallery}
+            />
+          </Avatar>
+        )}
         <Text style={{ marginLeft: 20, fontSize: 16, color: "#fff" }}>
           Choose Image
         </Text>
 
         <TouchableOpacity
+          disabled={selfieUploading}
           style={{
             padding: 17,
             paddingHorizontal: 20,
@@ -325,6 +337,7 @@ const Registration = ({ navigation }) => {
             Already have an account?
           </Text>
           <TouchableOpacity
+            disabled={selfieUploading}
             style={{
               padding: 17,
               paddingHorizontal: 20,
