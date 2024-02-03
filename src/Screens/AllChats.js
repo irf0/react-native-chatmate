@@ -153,7 +153,7 @@ const AllChats = () => {
             }}
             key={qr?.friendUniqueID}
           >
-            {qr?.addedToContact && qr?.conversation.length > 1 && (
+            {qr?.addedToContact && (
               <TouchableOpacity
                 onPress={() =>
                   handleNavigateToChatscreen(

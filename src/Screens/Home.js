@@ -12,18 +12,21 @@ import {
   responsiveHeight,
   responsiveWidth,
 } from "react-native-responsive-dimensions";
-import { NavigationContainer } from "@react-navigation/native";
+import { NavigationContainer, useNavigation } from "@react-navigation/native";
 import AllChats from "./AllChats";
 import Contacts from "./Contacts";
 
 const Tab = createMaterialTopTabNavigator();
 
 function Tab3() {
+  const navigation = useNavigation();
   return (
     <ScrollView>
-      <View style={{ padding: 10, margin: 10 }}>
-        <Text>Calls here</Text>
-      </View>
+      <TouchableOpacity onPress={() => navigation.navigate("Audio")}>
+        <View style={{ padding: 10, margin: 10 }}>
+          <Text>Calls here</Text>
+        </View>
+      </TouchableOpacity>
     </ScrollView>
   );
 }

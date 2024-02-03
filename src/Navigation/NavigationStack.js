@@ -14,6 +14,9 @@ import Search from "../Screens/Search";
 import { useNavigation } from "@react-navigation/native";
 import { FIREBASE_AUTH } from "../../Firebase";
 import ChatScreen from "../Screens/ChatScreen";
+import AudioRecord from "../Screens/AudioRecord";
+import AudioPlayer from "../Screens/AudioPlayer";
+import AudioTest from "../Screens/AudioTest";
 
 const Stack = createNativeStackNavigator();
 
@@ -216,6 +219,48 @@ const NavigationStack = () => {
                 color: "#fff",
               },
               headerLeft: () => <TouchableOpacity>{""}</TouchableOpacity>,
+            }}
+          />
+          {/* <Stack.Screen
+            name="Audio"
+            component={AudioRecord}
+            options={{
+              headerShown: true,
+              headerStyle: {
+                elevation: 0,
+                backgroundColor: "#5b41f0",
+              },
+              headerTitleStyle: {
+                color: "#fff",
+              },
+            }}
+          /> */}
+          {/* <Stack.Screen
+            name="Audio"
+            component={AudioPlayer}
+            options={{
+              headerShown: true,
+              headerStyle: {
+                elevation: 0,
+                backgroundColor: "#5b41f0",
+              },
+              headerTitleStyle: {
+                color: "#fff",
+              },
+            }}
+          /> */}
+          <Stack.Screen
+            name="Audio"
+            component={AudioTest}
+            options={{
+              headerShown: true,
+              headerStyle: {
+                elevation: 0,
+                backgroundColor: "#5b41f0",
+              },
+              headerTitleStyle: {
+                color: "#fff",
+              },
             }}
           />
         </Stack.Navigator>
