@@ -68,11 +68,8 @@ const ChatScreen = ({ navigation, route }) => {
   const [recordings, setRecordings] = React.useState([]);
   const [recording, setRecording] = useState();
   const [permissionAlert, setPermissionAlert] = useState("");
-
   const [audioUploading, setAudioUploading] = useState(false);
   const [uploadedAudioURL, setUploadedAudioURL] = useState("");
-
-  const [currentTrackId, setCurrentTrackId] = useState("");
   const [sound, setSound] = useState();
   const [isLoaded, setIsLoaded] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -81,6 +78,8 @@ const ChatScreen = ({ navigation, route }) => {
   const [lastPosition, setLastPosition] = useState(0);
   const [sliderValue, setSliderValue] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [remainingDuration, setRemainingDuration] = useState(0);
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -145,9 +144,12 @@ const ChatScreen = ({ navigation, route }) => {
   //Format time of messages(chats)
   const formatTime = (timestamp) => {
     const date = new Date(timestamp?.seconds * 1000);
-    const hours = date?.getHours()?.toString()?.padStart(2, "0");
+    let hours = date?.getHours();
     const minutes = date?.getMinutes()?.toString()?.padStart(2, "0");
-    return `${hours}:${minutes}`;
+    const ampm = hours >= 12 ? "pm" : "am";
+    hours = hours % 12 || 12; // Handle midnight (12 AM)
+    hours = hours.toString().padStart(2, "0");
+    return `${hours}:${minutes} ${ampm}`;
   };
 
   //Delete a message
@@ -219,7 +221,10 @@ const ChatScreen = ({ navigation, route }) => {
     if (!result.canceled) {
       setUploadedMediaURL(result?.assets[0]?.uri);
       setUploadedMediaName(result?.assets[0]?.fileName);
-      uploadSelfie(result?.assets[0]?.uri, result?.assets[0]?.fileName);
+      const uploadedURL = uploadSelfie(
+        result?.assets[0]?.uri,
+        result?.assets[0]?.fileName
+      );
     }
   };
 
@@ -239,8 +244,10 @@ const ChatScreen = ({ navigation, route }) => {
     if (!result.canceled) {
       setUploadedMediaURL(result?.uri);
       setUploadedMediaName(result);
-      uploadSelfie(result?.assets[0]?.uri, result?.assets[0]?.fileName);
-      console.log(result.uri);
+      const uploadedURL = await uploadSelfie(
+        result?.uri,
+        result?.assets[0]?.fileName
+      );
     }
   };
 
@@ -263,21 +270,16 @@ const ChatScreen = ({ navigation, route }) => {
 
     const storage = getStorage();
     const fileName = uuidv4();
-    const storageRef = ref(storage, `chats/${name}`);
+    const storageRef = ref(storage, `chats/images/${fileName}`);
 
     try {
       await uploadBytes(storageRef, blob);
-
       // Get the download URL
       const url = await getDownloadURL(storageRef);
       console.log(url);
-
       // Set state values and then send the message
       setUploadedMediaURL(url);
       setMediaUploading(false);
-      if (!mediaUploading) {
-        await sendMessage(friendUniqueID);
-      }
     } catch (error) {
       console.error("Error while uploading file:", error);
       setMediaUploading(false);
@@ -287,28 +289,28 @@ const ChatScreen = ({ navigation, route }) => {
     }
   };
 
-  //------------Audio Message Department👇---------------//
-
+  //Send Image Message
   useEffect(() => {
-    // Set up an event listener for playback status updates
-    if (sound) {
-      sound.setOnPlaybackStatusUpdate(async (status) => {
-        if (status.didJustFinish) {
-          // If the current audio finished playing, unload it
-          await sound.unloadAsync();
-          setSound(null);
-          setIsPlaying(false);
-        } else {
-          // Update the last position when the playback status is updated
-
-          // Update the last position when the playback status is updated
-          setLastPosition(status.positionMillis);
-          setIsPlaying(status.isPlaying);
-          setSliderValue(status.positionMillis);
+    const sendImageMediaMessage = async () => {
+      try {
+        if (uploadedMediaURL && !mediaUploading && messageInput === "") {
+          await sendImageMessage(friendUniqueID);
+          setUploadedMediaURL(null);
+          setMediaUploading(false);
         }
-      });
-    }
-  }, [sound]);
+      } catch (error) {
+        console.error("Error sending media message:", error);
+      }
+    };
+
+    sendImageMediaMessage();
+
+    return () => {
+      setUploadedMediaURL(null);
+    };
+  }, [uploadedMediaURL, mediaUploading]);
+
+  //------------Audio Message Department👇---------------//
 
   //Start recording
   async function startRecording() {
@@ -343,11 +345,7 @@ const ChatScreen = ({ navigation, route }) => {
         const { sound: newSound, status } =
           await recording.createNewLoadedSoundAsync();
         setSound(newSound);
-        await uploadAudioToFirebase(recording.getURI());
-
-        if (!audioUploading && recording.getURI()) {
-          await sendMessage(friendUniqueID, status?.durationMillis);
-        }
+        await uploadAudioToFirebase(recording.getURI(), status.durationMillis);
 
         // Do something with the recorded sound, e.g., save to state or play it
         console.log("Recording stopped. Duration:", status.durationMillis);
@@ -360,7 +358,7 @@ const ChatScreen = ({ navigation, route }) => {
   };
 
   //Upload audio to cloud
-  const uploadAudioToFirebase = async (audioFileUri) => {
+  const uploadAudioToFirebase = async (audioFileUri, duration) => {
     const blob = await new Promise((resolve, reject) => {
       setAudioUploading(true);
       const xhr = new XMLHttpRequest();
@@ -394,6 +392,9 @@ const ChatScreen = ({ navigation, route }) => {
       // Set state values and then send the message
       setUploadedAudioURL(url);
       setAudioUploading(false);
+      if (uploadedAudioURL) {
+        await sendAudioMessage(friendUniqueID, duration);
+      }
     } catch (error) {
       console.error("Error while uploading file:", error);
       setAudioUploading(false);
@@ -405,55 +406,50 @@ const ChatScreen = ({ navigation, route }) => {
     console.log("audio upload url:", uploadedAudioURL);
   };
 
-  //Play-Pause the audio
-  const loadSound = async (audioCloudUrl) => {
+  useEffect(() => {
+    // Set up an event listener for playback status updates
     if (sound) {
-      try {
-        if (sound.isLoaded) {
-          await sound.stopAsync();
-          await sound.unloadAsync();
-        } else {
-          await sound.loadAsync({ uri: audioCloudUrl });
+      sound.setOnPlaybackStatusUpdate(async (status) => {
+        if (
+          !status.isLoaded ||
+          isNaN(status.durationMillis) ||
+          isNaN(status.positionMillis)
+        ) {
+          // Check if the audio is loaded and positions are valid numbers
+          return;
         }
-      } catch (error) {
-        console.error("Error loading sound:", error);
-      }
+        if (status.didJustFinish) {
+          // If the current audio finished playing, unload it
+          await sound.unloadAsync();
+          setSound(null);
+          setIsPlaying(false);
+          setSliderValue(0);
+        } else {
+          const currentTimeInSeconds = status.positionMillis / 1000;
+          const remainingDurationInSeconds =
+            (status.durationMillis - status.positionMillis) / 1000;
+
+          setCurrentTime(currentTimeInSeconds);
+          setRemainingDuration(remainingDurationInSeconds);
+          setIsPlaying(status.isPlaying);
+          // setSliderValue(status.positionMillis);
+          const progress = status.positionMillis / status.durationMillis;
+          // Gradually update the slider value based on the audio progress
+          setSliderValue(progress);
+        }
+      });
+    }
+  }, [sound]);
+
+  const onPlaybackStatusUpdate = (status) => {
+    if (status.isLoaded && status.isPlaying) {
+      setSliderValue(status.positionMillis);
     }
   };
 
-  //Pause-Play functionality
-  // const playPauseToggle = async (audioLink, audioId) => {
-  //   setCurrentTrackId(audioId);
-  //   if (!sound) return;
-
-  //   try {
-  //     if (sound.isLoaded) {
-  //       await sound.stopAsync();
-  //       await sound.unloadAsync();
-  //     } else {
-  //       await loadSound(audioLink);
-  //     }
-
-  //     if (isPlaying) {
-  //       setIsPlaying(false);
-  //       await sound.pauseAsync();
-  //       await sound.unloadAsync();
-  //     } else {
-  //       setIsPlaying(true);
-  //       const savedPosition = await AsyncStorage.getItem("playbackPosition");
-  //       const startPosition = savedPosition ? parseFloat(savedPosition) : 0;
-
-  //       await sound.setPositionAsync(startPosition);
-  //       await sound.playAsync();
-  //     }
-
-  //     // setIsPlaying(!isPlaying);
-  //   } catch (error) {
-  //     console.error("Error toggling play/pause:", error);
-  //   }
-  // };
-
   async function playPauseToggle(audioLink, id, audioDuration) {
+    // console.log(audioDuration);
+    //Play audio for the first time
     if (sound && currentUri === audioLink) {
       // If sound is already playing, pause or resume it based on the current status
       if (isLoaded) {
@@ -463,6 +459,7 @@ const ChatScreen = ({ navigation, route }) => {
         } else {
           await sound.playAsync();
         }
+        sound.setOnPlaybackStatusUpdate(onPlaybackStatusUpdate);
       } else {
         // If sound is not loaded, unload the current one and load the new one
         await sound.stopAsync();
@@ -473,10 +470,11 @@ const ChatScreen = ({ navigation, route }) => {
           },
           { shouldPlay: true, positionMillis: lastPosition }
         );
+        // newSound.setOnPlaybackStatusUpdate(onPlaybackStatusUpdate);
         setSound(newSound);
         setCurrentUri(audioLink);
         setIsLoaded(true);
-        setIsPlaying(true);
+        setIsPlaying(!isPlaying);
         setAudioId(id);
         setDuration(audioDuration);
       }
@@ -485,44 +483,63 @@ const ChatScreen = ({ navigation, route }) => {
         {
           uri: audioLink,
         },
-        { shouldPlay: true, positionMillis: lastPosition },
-        onPlaybackStatusUpdate
+        { shouldPlay: true, positionMillis: lastPosition }
       );
+      newSound.setOnPlaybackStatusUpdate(onPlaybackStatusUpdate);
       setSound(newSound);
       setIsLoaded(true);
       setCurrentUri(audioLink);
-      setIsPlaying(true);
+      setIsPlaying(!isPlaying);
       setAudioId(id);
       setDuration(audioDuration);
     }
   }
 
-  const onPlaybackStatusUpdate = (status) => {
-    setSliderValue(status.positionMillis);
-  };
-
   const onSliderValueChange = (value) => {
     setSliderValue(value);
-    // You can add more logic here, like seeking to the selected position
   };
 
-  useEffect(() => {
-    if (sound && isPlaying) {
-      const intervalId = setInterval(() => {
-        setSliderValue((prevValue) => prevValue + 100);
-      }, 100);
-      return () => clearInterval(intervalId);
-    }
-  }, []);
+  //format audio time
+  const formatAudioDurationTime = (milliseconds) => {
+    // Convert milliseconds to seconds
+    let totalSeconds = Math.floor(milliseconds / 1000);
+    let minutes = Math.floor(totalSeconds / 60);
+    let seconds = totalSeconds % 60;
+    seconds = seconds < 10 ? "0" + seconds : seconds;
+
+    return `${minutes}:${seconds}`;
+  };
+
+  // Send Audio Message
+  // useEffect(() => {
+  //   const sendAudioMediaMessage = async () => {
+  //     try {
+  //       // Check if uploadedAudioURL is not null, audio is not uploading, and messageInput is empty
+  //       if (uploadedAudioURL && !audioUploading && !messageInput) {
+  //         await sendAudioMessage(friendUniqueID, duration);
+  //         setUploadedAudioURL(null);
+  //         setAudioUploading(false);
+  //       }
+  //     } catch (error) {
+  //       console.error("Error sending audio message:", error);
+  //     }
+  //   };
+
+  //   sendAudioMediaMessage();
+
+  //   // Cleanup function to reset uploadedAudioURL
+  //   return () => {
+  //     setUploadedAudioURL(null);
+  //   };
+  // }, [uploadedAudioURL, audioUploading, messageInput]);
 
   //--------Sending the Message Deaprtment👇----------//
-  const sendMessage = async (senderId, audioDuration) => {
+
+  const sendImageMessage = async (senderId) => {
     const loggedUserId = await AsyncStorage.getItem("docID");
-    console.log(senderId);
     try {
       const messageDocRef = doc(FIREBASE_DB, "chats", combinedChatId);
       setMessageInput("");
-      setMediaUploading(false);
       setModalVisible(false);
       if (uploadedMediaURL && messageInput == "") {
         await updateDoc(
@@ -538,7 +555,19 @@ const ChatScreen = ({ navigation, route }) => {
           },
           { merge: true }
         );
-      } else if (uploadedAudioURL && messageInput == "") {
+        setUploadedMediaURL("");
+      }
+    } catch (error) {
+      console.log("error sending image", error);
+    }
+  };
+
+  const sendAudioMessage = async (senderId, audioDuration) => {
+    const loggedUserId = await AsyncStorage.getItem("docID");
+    try {
+      const messageDocRef = doc(FIREBASE_DB, "chats", combinedChatId);
+      setMessageInput("");
+      if (uploadedAudioURL && messageInput == "") {
         await updateDoc(
           messageDocRef,
           {
@@ -553,23 +582,34 @@ const ChatScreen = ({ navigation, route }) => {
           },
           { merge: true }
         );
-      } else {
-        await updateDoc(
-          messageDocRef,
-          {
-            conversation: arrayUnion({
-              msg: messageInput,
-              sendBy: senderId !== loggedUserId ? "user" : "receiver",
-              type: "text",
-              msgId: uuidv4(),
-              time: new Date(),
-            }),
-          },
-          { merge: true }
-        );
+        setRecording(null);
       }
+    } catch (err) {
+      console.log("error sending audio", err);
+    }
+  };
 
-      console.log("msg sent success");
+  const sendTextMessage = async (senderId) => {
+    const loggedUserId = await AsyncStorage.getItem("docID");
+
+    try {
+      const messageDocRef = doc(FIREBASE_DB, "chats", combinedChatId);
+      setMessageInput("");
+      setModalVisible(false);
+      // Only send a text message if messageInput is not empty
+      await updateDoc(
+        messageDocRef,
+        {
+          conversation: arrayUnion({
+            msg: messageInput,
+            sendBy: senderId !== loggedUserId ? "user" : "receiver",
+            type: "text",
+            msgId: uuidv4(),
+            time: new Date(),
+          }),
+        },
+        { merge: true }
+      );
     } catch (error) {
       console.log("error sending msg", error);
     }
@@ -633,6 +673,7 @@ const ChatScreen = ({ navigation, route }) => {
                             height: responsiveHeight(7),
                             padding: 10,
                             flexDirection: "row",
+                            position: "relative",
                           }}
                         >
                           <TouchableOpacity
@@ -648,39 +689,99 @@ const ChatScreen = ({ navigation, route }) => {
                               name={
                                 sound &&
                                 sound !== null &&
-                                item?.msgId === audioId
+                                item?.msgId === audioId &&
+                                isPlaying
                                   ? `pause`
-                                  : `play`
+                                  : "play"
                               }
                               size={40}
+                              color="#fff"
                             />
                           </TouchableOpacity>
-                          <TouchableOpacity style={styles.verticalContent}>
+                          <TouchableOpacity
+                            activeOpacity={1}
+                            style={styles.verticalContent}
+                          >
                             <Slider
-                              value={sliderValue}
+                              value={item?.msgId === audioId ? sliderValue : 0}
                               onValueChange={onSliderValueChange}
                               minimumValue={0}
-                              maximumValue={item?.duration}
+                              maximumValue={1}
+                              minimumTrackTintColor="#fff"
+                              maximumTrackTintColor="#6f7070"
                               step={1}
                               thumbStyle={{
                                 height: 14,
                                 width: 14,
                                 borderRadius: 50,
-                                backgroundColor: "#fff",
+                                backgroundColor: "#42f58a",
                               }}
                               style={{ borderColor: "#fff" }}
                             />
                           </TouchableOpacity>
+
+                          {/* {sound &&
+                            sound !== null &&
+                            item?.msgId === audioId &&
+                            isPlaying && (
+                              <Text
+                                style={{
+                                  marginTop: -10,
+                                  fontSize: 12,
+                                  color: "#fff",
+                                }}
+                              >
+                                {formatAudioCurrentTime(currentTime)}
+                              </Text>
+                            )} */}
+
+                          <Text
+                            style={{
+                              marginTop: -10,
+                              fontSize: 12,
+                              color: "#fff",
+                            }}
+                          >
+                            {formatAudioDurationTime(item?.duration)}
+                          </Text>
+                          <Text
+                            style={{
+                              position: "absolute",
+                              color: "#fff",
+                              bottom: -8,
+                              right: 4,
+                              fontSize: 11,
+                            }}
+                          >
+                            {formatTime(item?.time)}
+                          </Text>
                         </View>
                       )}
                       {item.type === "image" && (
                         <TouchableWithoutFeedback
                           onLongPress={() => showAlert(item.msgId)}
                         >
-                          <Image
-                            source={{ uri: item?.mediaURL }}
-                            style={{ width: 250, height: 250 }}
-                          />
+                          <View>
+                            <Image
+                              source={{ uri: item?.mediaURL }}
+                              style={{
+                                width: 250,
+                                height: 250,
+                                position: "relative",
+                              }}
+                            />
+                            <Text
+                              style={{
+                                position: "absolute",
+                                color: "#fff",
+                                bottom: 3,
+                                left: 6,
+                                fontSize: 11,
+                              }}
+                            >
+                              {formatTime(item?.time)}
+                            </Text>
+                          </View>
                         </TouchableWithoutFeedback>
                       )}
                       {item.type === "text" && (
@@ -831,7 +932,7 @@ const ChatScreen = ({ navigation, route }) => {
           ) : (
             <TouchableOpacity
               activeOpacity={0.8}
-              onPress={() => sendMessage(friendUniqueID)}
+              onPress={() => sendTextMessage(friendUniqueID)}
             >
               <MaterialCommunityIcons
                 name="send-circle"
