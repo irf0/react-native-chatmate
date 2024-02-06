@@ -12,6 +12,8 @@ import {
   ActivityIndicator,
   Modal,
   Alert,
+  Animated,
+  Easing,
 } from "react-native";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Avatar, Button, Icon, Slider } from "react-native-elements";
@@ -20,7 +22,9 @@ import {
   responsiveWidth,
 } from "react-native-responsive-dimensions";
 import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons";
+import Fontisto from "react-native-vector-icons/Fontisto";
 import Ionicons from "react-native-vector-icons/Ionicons";
+import FontAwesome from "react-native-vector-icons/FontAwesome5";
 import EmojiPicker from "rn-emoji-keyboard";
 import FontAwesome5 from "react-native-vector-icons/FontAwesome5";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -42,10 +46,11 @@ import * as ImagePicker from "expo-image-picker";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import "react-native-get-random-values";
 import { v4 as uuidv4 } from "uuid";
-import * as MediaLibrary from "expo-media-library";
-// import SoundPlayer from "react-native-sound-player";
-import { AudioRecorderPlayer } from "react-native-audio-recorder-player";
 import { Audio } from "expo-av";
+import {
+  GestureHandlerRootView,
+  Swipeable,
+} from "react-native-gesture-handler";
 
 const ChatScreen = ({ navigation, route }) => {
   const {
@@ -55,6 +60,7 @@ const ChatScreen = ({ navigation, route }) => {
     friendUniqueID,
     combinedChatId,
   } = route.params || [];
+
   const [messageInput, setMessageInput] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [currentlySelectedEmojis, setCurrentlySelectedEmojis] = useState([]);
@@ -65,7 +71,6 @@ const ChatScreen = ({ navigation, route }) => {
   const [uploadedMediaURL, setUploadedMediaURL] = useState("");
   const [uploadedMediaName, setUploadedMediaName] = useState("");
   const [mediaUploading, setMediaUploading] = useState(false);
-  const [recordings, setRecordings] = React.useState([]);
   const [recording, setRecording] = useState();
   const [permissionAlert, setPermissionAlert] = useState("");
   const [audioUploading, setAudioUploading] = useState(false);
@@ -80,6 +85,10 @@ const ChatScreen = ({ navigation, route }) => {
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [remainingDuration, setRemainingDuration] = useState(0);
+  const [recordBtnSwipe, setRecordBtnSwipe] = useState(false);
+  const [recordingCounter, setRecordingCounter] = useState(0);
+  const [isStillRecording, setIsStillRecording] = useState(false);
+  const [key, setKey] = useState(0);
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -139,7 +148,7 @@ const ChatScreen = ({ navigation, route }) => {
     };
 
     getUserMessages();
-  }, []);
+  }, [combinedChatId]);
 
   //Format time of messages(chats)
   const formatTime = (timestamp) => {
@@ -174,27 +183,31 @@ const ChatScreen = ({ navigation, route }) => {
   };
 
   //Show confirmation before deleting a msg.
-  const showAlert = (messageId) => {
-    Alert.alert(
-      "Confirmation Required!",
-      "Delete this message?",
+  const showAlert = (sendBy, messageId) => {
+    if (sendBy == "user") {
+      Alert.alert(
+        "Confirmation Required!",
+        "Delete this message?",
 
-      [
-        {
-          text: "Don't delete",
-          style: "cancel",
-        },
-        {
-          text: "Yes, Delete",
-          style: "destructive",
-
-          onPress: () => {
-            deleteMessage(messageId);
+        [
+          {
+            text: "Don't delete",
+            style: "cancel",
           },
-        },
-      ],
-      { cancelable: true }
-    );
+          {
+            text: "Yes, Delete",
+            style: "destructive",
+
+            onPress: () => {
+              deleteMessage(messageId);
+            },
+          },
+        ],
+        { cancelable: true }
+      );
+    } else {
+      Alert.alert("You cannot delete this message!");
+    }
   };
 
   //----------Selecting and sending emojis Department👇----------//
@@ -321,7 +334,8 @@ const ChatScreen = ({ navigation, route }) => {
           allowsRecordingIOS: true,
           playsInSilentModeIOS: true,
         });
-
+        setRecording(null);
+        setIsStillRecording(true);
         const { recording } = await Audio.Recording.createAsync(
           Audio.RECORDING_OPTIONS_PRESET_HIGH_QUALITY
         );
@@ -337,7 +351,6 @@ const ChatScreen = ({ navigation, route }) => {
     }
   }
 
-  //Stop recording
   const stopRecording = async () => {
     if (recording) {
       try {
@@ -345,65 +358,81 @@ const ChatScreen = ({ navigation, route }) => {
         const { sound: newSound, status } =
           await recording.createNewLoadedSoundAsync();
         setSound(newSound);
-        await uploadAudioToFirebase(recording.getURI(), status.durationMillis);
-
+        setAudioUploading(true);
+        await uploadAudioToFirebase(recording.getURI());
+        setAudioUploading(false);
+        if (!audioUploading) {
+          await sendAudioMessage(friendUniqueID, status.durationMillis);
+          setIsStillRecording(false);
+          setRecording(null);
+        }
         // Do something with the recorded sound, e.g., save to state or play it
         console.log("Recording stopped. Duration:", status.durationMillis);
+        setDuration(status.durationMillis);
+        setRecordingCounter(0);
       } catch (error) {
         console.error("Error stopping recording:", error);
       } finally {
-        setRecording(null);
+        setRecordingCounter(0);
       }
     }
   };
 
-  //Upload audio to cloud
-  const uploadAudioToFirebase = async (audioFileUri, duration) => {
-    const blob = await new Promise((resolve, reject) => {
-      setAudioUploading(true);
-      const xhr = new XMLHttpRequest();
-      xhr.onload = function () {
-        resolve(xhr.response);
-      };
-      xhr.onerror = function (e) {
-        console.warn(e);
-        reject(new TypeError("Network request failed"));
-      };
-      xhr.responseType = "blob";
-      xhr.open("GET", audioFileUri, true);
-      xhr.send(null);
-    });
-
-    const storage = getStorage();
-    const fileName = `${uuidv4()}.mp3`;
-    const storageRef = ref(storage, `chats/audio/${fileName}`);
-
-    const metadata = {
-      contentType: "audio/3gpp",
+  //Pulse Animation
+  const heartbeat = new Animated.Value(1);
+  useEffect(() => {
+    // Triggering slower heartbeat animation
+    const pulse = () => {
+      Animated.timing(heartbeat, {
+        toValue: 1.2,
+        duration: 800,
+        easing: Easing.in(Easing.ease),
+        useNativeDriver: true,
+      }).start(() => {
+        Animated.timing(heartbeat, {
+          toValue: 1,
+          duration: 800,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }).start();
+      });
     };
 
+    // Call the pulse function whenever the recordingCounter changes
+    pulse();
+
+    // Clean up when component unmounts
+    return () => {
+      // Clean up any resources if needed
+    };
+  }, [recordingCounter]);
+
+  const uploadAudioToFirebase = async (audioFileUri) => {
     try {
+      setAudioUploading(true);
+      const response = await fetch(audioFileUri);
+      let blob = await response.blob();
+
+      const storage = getStorage();
+      const fileName = `${uuidv4()}.mp3`;
+      const storageRef = ref(storage, `chats/audio/${fileName}`);
+
+      const metadata = {
+        contentType: "audio/mpeg", // Adjust content type based on the actual format
+      };
+
       await uploadBytes(storageRef, blob, metadata);
 
       // Get the download URL
       const url = await getDownloadURL(storageRef);
-      console.log("this is uploaded audio url", url);
-
+      console.log("Uploaded audio URL:", url);
       // Set state values and then send the message
       setUploadedAudioURL(url);
       setAudioUploading(false);
-      if (uploadedAudioURL) {
-        await sendAudioMessage(friendUniqueID, duration);
-      }
     } catch (error) {
       console.error("Error while uploading file:", error);
       setAudioUploading(false);
-    } finally {
-      // Close and release the blob
-      blob.close();
     }
-
-    console.log("audio upload url:", uploadedAudioURL);
   };
 
   useEffect(() => {
@@ -448,7 +477,6 @@ const ChatScreen = ({ navigation, route }) => {
   };
 
   async function playPauseToggle(audioLink, id, audioDuration) {
-    // console.log(audioDuration);
     //Play audio for the first time
     if (sound && currentUri === audioLink) {
       // If sound is already playing, pause or resume it based on the current status
@@ -531,7 +559,7 @@ const ChatScreen = ({ navigation, route }) => {
   //   return () => {
   //     setUploadedAudioURL(null);
   //   };
-  // }, [uploadedAudioURL, audioUploading, messageInput]);
+  // }, [uploadedAudioURL, audioUploading]);
 
   //--------Sending the Message Deaprtment👇----------//
 
@@ -547,7 +575,7 @@ const ChatScreen = ({ navigation, route }) => {
           {
             conversation: arrayUnion({
               mediaURL: uploadedMediaURL,
-              sendBy: senderId !== loggedUserId ? "user" : "receiver",
+              sendBy: senderId === loggedUserId ? "user" : "receiver",
               type: "image",
               msgId: uuidv4(),
               time: new Date(),
@@ -563,11 +591,12 @@ const ChatScreen = ({ navigation, route }) => {
   };
 
   const sendAudioMessage = async (senderId, audioDuration) => {
+    console.log("from sendaudiomsg", audioDuration);
     const loggedUserId = await AsyncStorage.getItem("docID");
     try {
       const messageDocRef = doc(FIREBASE_DB, "chats", combinedChatId);
       setMessageInput("");
-      if (uploadedAudioURL && messageInput == "") {
+      if (uploadedAudioURL && !audioUploading && messageInput == "") {
         await updateDoc(
           messageDocRef,
           {
@@ -615,9 +644,44 @@ const ChatScreen = ({ navigation, route }) => {
     }
   };
 
-  const toggleModal = () => {
-    setModalVisible(!isModalVisible);
+  //Recording stop-watch
+  useEffect(() => {
+    let intervalId;
+
+    if (recording) {
+      intervalId = setInterval(() => {
+        setRecordingCounter((prevCounter) => prevCounter + 1);
+      }, 1000);
+    }
+
+    // Cleanup the interval when the component unmounts or recording stops
+    return () => clearInterval(intervalId);
+  }, [recording]);
+
+  const RightSwipeActions = () => {
+    return (
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: "#f56653",
+          justifyContent: "center",
+        }}
+      >
+        <View
+          style={{
+            color: "white",
+            paddingHorizontal: 10,
+            fontWeight: "600",
+            paddingHorizontal: 30,
+            paddingVertical: 20,
+          }}
+        >
+          <MaterialCommunityIcons name="delete" size={30} color="white" />
+        </View>
+      </View>
+    );
   };
+  // console.log(recordBtnSwipe);
 
   return (
     <>
@@ -647,7 +711,7 @@ const ChatScreen = ({ navigation, route }) => {
                 }}
               >
                 <TouchableWithoutFeedback
-                  onLongPress={() => showAlert(item.msgId)}
+                  onLongPress={() => showAlert(item?.sendBy, item?.msgId)}
                 >
                   <View
                     style={{
@@ -668,12 +732,14 @@ const ChatScreen = ({ navigation, route }) => {
                     <View>
                       {item.type === "audio" && (
                         <View
+                          key={key}
                           style={{
                             width: 200,
                             height: responsiveHeight(7),
                             padding: 10,
                             flexDirection: "row",
-                            position: "relative",
+                            alignItems: "center",
+                            gap: 4,
                           }}
                         >
                           <TouchableOpacity
@@ -685,7 +751,7 @@ const ChatScreen = ({ navigation, route }) => {
                               )
                             }
                           >
-                            <MaterialCommunityIcons
+                            <FontAwesome
                               name={
                                 sound &&
                                 sound !== null &&
@@ -694,8 +760,11 @@ const ChatScreen = ({ navigation, route }) => {
                                   ? `pause`
                                   : "play"
                               }
-                              size={40}
-                              color="#fff"
+                              size={25}
+                              style={{ alignSelf: "center" }}
+                              color={
+                                item?.sendBy === "user" ? "#fff" : "#535454"
+                              }
                             />
                           </TouchableOpacity>
                           <TouchableOpacity
@@ -707,9 +776,13 @@ const ChatScreen = ({ navigation, route }) => {
                               onValueChange={onSliderValueChange}
                               minimumValue={0}
                               maximumValue={1}
-                              minimumTrackTintColor="#fff"
-                              maximumTrackTintColor="#6f7070"
-                              step={1}
+                              minimumTrackTintColor={
+                                item?.sendBy === "user" ? "#fff" : "#6f7070"
+                              }
+                              maximumTrackTintColor={
+                                item?.sendBy === "user" ? "#6f7070" : "#6f7070"
+                              }
+                              step={0.01}
                               thumbStyle={{
                                 height: 14,
                                 width: 14,
@@ -737,9 +810,11 @@ const ChatScreen = ({ navigation, route }) => {
 
                           <Text
                             style={{
-                              marginTop: -10,
+                              marginTop: 6,
+                              textAlignVertical: "center",
                               fontSize: 12,
-                              color: "#fff",
+                              marginLeft: 6,
+                              color: item?.sendBy === "user" ? "#fff" : "#000",
                             }}
                           >
                             {formatAudioDurationTime(item?.duration)}
@@ -747,10 +822,10 @@ const ChatScreen = ({ navigation, route }) => {
                           <Text
                             style={{
                               position: "absolute",
-                              color: "#fff",
+                              color: item?.sendBy === "user" ? "#fff" : "#000",
                               bottom: -8,
                               right: 4,
-                              fontSize: 11,
+                              fontSize: 10,
                             }}
                           >
                             {formatTime(item?.time)}
@@ -810,7 +885,6 @@ const ChatScreen = ({ navigation, route }) => {
             );
           }}
         />
-
         <View
           style={{
             flexDirection: "row",
@@ -820,28 +894,79 @@ const ChatScreen = ({ navigation, route }) => {
             backgroundColor: "",
           }}
         >
-          <TextInput
-            ref={inputRef}
-            style={{
-              height: responsiveHeight(6),
-              marginBottom: 15,
-              flex: 1,
-              alignSelf: "center",
-              position: "relative",
-              borderRadius: 26,
-              paddingHorizontal: 14,
-              backgroundColor: "#fff",
-              paddingVertical: 10,
-              paddingLeft: 42,
-            }}
-            value={messageInput}
-            onChangeText={(text) => setMessageInput(text)}
-            placeholder={`${
-              messageInput === "" ? "Type your message" : messageInput
-            }`}
-            multiline={true}
-            numberOfLines={3}
-          />
+          {isStillRecording ? (
+            <View
+              ref={inputRef}
+              style={{
+                height: responsiveHeight(6),
+                width: "80%",
+                marginBottom: 18,
+                flex: 1,
+                alignSelf: "center",
+                bottom: 1,
+                borderRadius: 7,
+                paddingHorizontal: 14,
+                backgroundColor: "#5b41f0",
+                paddingVertical: 8,
+                paddingLeft: 42,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <View style={{ flexDirection: "row", gap: 14 }}>
+                <Animated.View style={{ transform: [{ scale: heartbeat }] }}>
+                  <Fontisto name="record" size={26} color={"red"} />
+                </Animated.View>
+
+                {!audioUploading && (
+                  <Text
+                    style={{ color: "#fff", fontSize: 18, marginBottom: 3 }}
+                  >
+                    {recordingCounter}
+                  </Text>
+                )}
+              </View>
+
+              <TouchableOpacity activeOpacity={0.8} onPress={stopRecording}>
+                <MaterialCommunityIcons
+                  name={"send"}
+                  // color={"#5b41f0"}
+                  color={"#fff"}
+                  size={26}
+                  style={{
+                    position: "absolute",
+                    bottom: -14,
+                    right: 3,
+                    alignSelf: "center",
+                  }}
+                />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TextInput
+              ref={inputRef}
+              style={{
+                height: responsiveHeight(6),
+                marginBottom: 15,
+                flex: 1,
+                alignSelf: "center",
+                position: "relative",
+                borderRadius: 26,
+                paddingHorizontal: 14,
+                backgroundColor: "#fff",
+                paddingVertical: 10,
+                paddingLeft: 42,
+              }}
+              value={messageInput}
+              onChangeText={(text) => setMessageInput(text)}
+              placeholder={`${
+                messageInput === "" ? "Type your message" : messageInput
+              }`}
+              multiline={true}
+              numberOfLines={3}
+            />
+          )}
           {showEmojiPicker && (
             <EmojiPicker
               open={showEmojiPicker}
@@ -878,14 +1003,14 @@ const ChatScreen = ({ navigation, route }) => {
               />
             ) : (
               <MaterialCommunityIcons
-                name="image-multiple-outline"
-                size={27}
+                name={!isStillRecording ? "image-multiple-outline" : ""}
+                size={26}
                 color={"#5b41f0"}
                 style={{
                   position: "absolute",
                   alignSelf: "center",
                   bottom: responsiveHeight(3.2),
-                  right: responsiveWidth(25),
+                  right: responsiveWidth(32),
                 }}
               />
             )}
@@ -898,44 +1023,59 @@ const ChatScreen = ({ navigation, route }) => {
                   position: "absolute",
                   alignSelf: "center",
                   bottom: responsiveHeight(3.2),
-                  right: responsiveWidth(16),
+                  right: responsiveWidth(24),
                 }}
                 color={"#5843d1"}
                 size={"large"}
               />
             ) : (
               <MaterialCommunityIcons
-                name="camera-outline"
-                size={29}
+                name={!isStillRecording ? "camera-outline" : ""}
+                size={28}
                 color={"#5b41f0"}
                 style={{
                   position: "absolute",
                   alignSelf: "center",
                   bottom: responsiveHeight(3.2),
-                  right: responsiveWidth(16),
+                  right: responsiveWidth(24),
+                }}
+              />
+            )}
+          </TouchableWithoutFeedback>
+          <TouchableWithoutFeedback onPress={startRecording}>
+            {audioUploading ? (
+              <ActivityIndicator
+                style={{
+                  position: "absolute",
+                  alignSelf: "center",
+                  bottom: responsiveHeight(3.2),
+                  right: responsiveWidth(15),
+                }}
+                color={"#fff"}
+                size={"large"}
+              />
+            ) : (
+              <MaterialCommunityIcons
+                name={!isStillRecording ? "microphone" : ""}
+                size={30}
+                color={"#5b41f0"}
+                style={{
+                  position: "absolute",
+                  alignSelf: "center",
+                  bottom: responsiveHeight(3.2),
+                  right: responsiveWidth(15),
                 }}
               />
             )}
           </TouchableWithoutFeedback>
 
-          {messageInput == "" ? (
-            <TouchableOpacity
-              onPress={recording ? stopRecording : startRecording}
-            >
-              <Ionicons
-                name="mic-circle-sharp"
-                color={"#5b41f0"}
-                size={49}
-                style={{ marginBottom: 16 }}
-              />
-            </TouchableOpacity>
-          ) : (
+          {!isStillRecording && (
             <TouchableOpacity
               activeOpacity={0.8}
               onPress={() => sendTextMessage(friendUniqueID)}
             >
               <MaterialCommunityIcons
-                name="send-circle"
+                name={"send-circle"}
                 color={"#5b41f0"}
                 size={49}
                 style={{ marginBottom: 16 }}

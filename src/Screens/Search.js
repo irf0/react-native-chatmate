@@ -11,16 +11,19 @@ import {
   ScrollView,
   ToastAndroid,
 } from "react-native";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons";
 import {
   collection,
   doc,
+  endAt,
   getDoc,
   getDocs,
+  orderBy,
   query,
   setDoc,
+  startAt,
   updateDoc,
   where,
 } from "firebase/firestore";
@@ -41,6 +44,17 @@ const Search = () => {
   const [selectedOption, setSelectedOption] = useState("name");
   const [showNothingImage, setShowNothingImage] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [loggedUserDocID, setLoggedUserDocID] = useState("");
+
+  //Getting and storing logged user docID on mount
+  useEffect(() => {
+    const getloggedUserID = async () => {
+      const loggedDocumentId = await AsyncStorage.getItem("docID");
+      setLoggedUserDocID(loggedDocumentId);
+    };
+
+    getloggedUserID();
+  }, []);
 
   const handleRadioPress = (option) => {
     setSelectedOption(option);
@@ -50,34 +64,73 @@ const Search = () => {
     setModalVisible(!isModalVisible);
   };
 
+  // const searchUser = async () => {
+  //   setIsLoading(true);
+  //   try {
+  //     let q;
+  //     const usersRef = collection(FIREBASE_DB, "users");
+  //     if (selectedOption === "phone") {
+  //       q = query(usersRef, where("phone", "==", searchPhone));
+  //     } else if (selectedOption === "name") {
+  //       q = query(
+  //         usersRef,
+  //         where("name", ">=", searchName),
+  //         where("name", "<=", searchName + "\uf8ff")
+  //       );
+  //     }
+
+  //     const searchResults = await getDocs(q).then((quer) => {
+  //       const queryData = quer.docs.map((doc) => doc.data());
+  //       console.log("search result", queryData);
+  //       if (queryData.length < 1) {
+  //         setShowNothingImage(true);
+  //       }
+  //       setQueryResult(queryData);
+  //       // setSearchName("");
+  //       // setSearchPhone("");
+  //     });
+  //     setIsLoading(false);
+  //   } catch (error) {
+  //     Alert.alert("An error occuring during search. Please try again");
+  //   }
+  // };
+
   const searchUser = async () => {
     setIsLoading(true);
     try {
       let q;
       const usersRef = collection(FIREBASE_DB, "users");
+
       if (selectedOption === "phone") {
         q = query(usersRef, where("phone", "==", searchPhone));
       } else if (selectedOption === "name") {
+        //To work with case insensitive
+        const words = searchName.split(" ");
+        const camelCaseName = words
+          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+          .join("");
+
         q = query(
           usersRef,
-          where("name", ">=", searchName),
-          where("name", "<=", searchName + "\uf8ff")
+          where("name", ">=", camelCaseName),
+          where("name", "<=", camelCaseName + "\uf8ff")
         );
       }
 
-      const searchResults = await getDocs(q).then((quer) => {
-        const queryData = quer.docs.map((doc) => doc.data());
-        console.log("search result", queryData);
-        if (queryData.length < 1) {
-          setShowNothingImage(true);
-        }
-        setQueryResult(queryData);
-        // setSearchName("");
-        // setSearchPhone("");
-      });
+      const searchResults = await getDocs(q);
+      const queryData = searchResults.docs.map((doc) => doc.data());
+      console.log("search result", queryData);
+
+      if (queryData.length < 1) {
+        setShowNothingImage(true);
+      }
+
+      setQueryResult(queryData);
       setIsLoading(false);
     } catch (error) {
-      Alert.alert("An error occuring during search. Please try again");
+      console.error("Error during search:", error);
+      Alert.alert("An error occurred during the search. Please try again");
+      setIsLoading(false);
     }
   };
 
@@ -94,6 +147,7 @@ const Search = () => {
         console.error("No document ID found");
         return;
       }
+
       const docRef = doc(FIREBASE_DB, "users", documentId);
       // Fetch the current friends array
       const userDoc = await getDoc(docRef);
@@ -106,7 +160,7 @@ const Search = () => {
 
       if (isFriendAlreadyAdded) {
         ToastAndroid.show("Friend already added!", ToastAndroid.SHORT);
-        navigation.navigate("Contacts");
+        navigation.navigate("Contacts", { uniqueIdFromSearch: uniqueIDInput });
       } else {
         // Add the friend to the array
         const updatedFriends = [
@@ -123,6 +177,7 @@ const Search = () => {
         await updateDoc(docRef, { friendsList: updatedFriends });
 
         ToastAndroid.show("Friend Added to Contacts", ToastAndroid.LONG);
+        navigation.navigate("Contacts");
         console.log("Friend successfully added! Find in Contacts");
       }
 
@@ -194,7 +249,9 @@ const Search = () => {
         }}
       >
         <TextInput
-          placeholder={selectedOption === "name" ? "Enter Name" : "Enter Phone"}
+          placeholder={
+            selectedOption === "name" ? "Enter First Name" : "Enter Phone"
+          }
           keyboardType={`${selectedOption === "phone" ? "phone-pad" : ""}`}
           value={selectedOption === "phone" ? searchPhone : searchName}
           onSubmitEditing={searchUser}
@@ -282,19 +339,23 @@ const Search = () => {
                 <Text>{qr?.name}</Text>
               </View>
             </View>
-            <TouchableOpacity
-              style={{
-                borderWidth: 1,
-                borderColor: "#5b41f0",
-                padding: 5,
-                borderRadius: 3,
-              }}
-              onPress={() =>
-                addFriend(qr?.name, qr?.phone, qr?.profilePic, qr?.uniqueID)
-              }
-            >
-              <Text style={{ color: "#5b41f0" }}>Add Friend</Text>
-            </TouchableOpacity>
+            {qr?.uniqueID !== loggedUserDocID ? (
+              <TouchableOpacity
+                style={{
+                  borderWidth: 1,
+                  borderColor: "#5b41f0",
+                  padding: 5,
+                  borderRadius: 3,
+                }}
+                onPress={() =>
+                  addFriend(qr?.name, qr?.phone, qr?.profilePic, qr?.uniqueID)
+                }
+              >
+                <Text style={{ color: "#5b41f0" }}>Add Friend</Text>
+              </TouchableOpacity>
+            ) : (
+              <Text style={{ color: "#5b41f0", fontSize: 17 }}>Myself</Text>
+            )}
           </ScrollView>
         ))
       ) : (

@@ -25,13 +25,15 @@ import {
 } from "firebase/firestore";
 import { FIREBASE_DB } from "../../Firebase";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import { responsiveHeight } from "react-native-responsive-dimensions";
 import "react-native-get-random-values";
 import { v4 as uuidv4 } from "uuid";
 
 const Contacts = () => {
   const navigation = useNavigation();
+  const router = useRoute();
+  // const { uniqueIdFromSearch } = router.params;
   const [isLoading, setIsLoading] = useState(false);
   const [queryResultData, setQueryResultData] = useState(null);
   const [isModalVisible, setModalVisible] = useState(false);
@@ -107,21 +109,38 @@ const Contacts = () => {
     friendUniqueID
   ) => {
     const loggedUserID = await AsyncStorage.getItem("docID");
+    const loggedUserName = await AsyncStorage.getItem("NAME");
+    const loggedUserPhone = await AsyncStorage.getItem("PHONE");
+    const loggedUserPic = await AsyncStorage.getItem("PROFILEPIC");
+
     const combinedChatId = `${loggedUserID}_${friendUniqueID}`;
     try {
       setIsClicked(true);
       const res = await getDoc(doc(FIREBASE_DB, "chats", combinedChatId));
-      if (!res.exists()) {
-        await setDoc(doc(FIREBASE_DB, "chats", combinedChatId), {
-          conversation: [],
-          loggedUserUniqueId: loggedUserID,
-          friendUniqueId: friendUniqueID,
+      if (res.exists()) {
+        navigation.navigate("ChatScreen", {
           friendName: friendName,
           friendPhone: friendPhone,
           friendProfilePic: friendProfilePic,
+          friendUniqueID: uuidv4(),
+          combinedChatId: combinedChatId,
+        });
+      } else {
+        // Create a new chatroom if it doesn't exist
+        await setDoc(doc(FIREBASE_DB, "chats", combinedChatId), {
+          conversation: [],
+          user1UniqueID: friendUniqueID,
+          user1Name: friendName,
+          user1Phone: friendPhone,
+          user1ProfilePic: friendProfilePic,
+          user2UniqueId: loggedUserID,
+          user2Name: loggedUserName,
+          user2Phone: loggedUserPhone,
+          user2ProfilePic: loggedUserPic,
           lastMessage: "",
           addedToContact: true,
           chatId: combinedChatId,
+          participant: [loggedUserID, friendUniqueID],
         });
 
         navigation.navigate("ChatScreen", {
@@ -131,18 +150,12 @@ const Contacts = () => {
           friendUniqueID: uuidv4(),
           combinedChatId: combinedChatId,
         });
-      } else {
-        navigation.navigate("ChatScreen", {
-          friendName: friendName,
-          friendPhone: friendPhone,
-          friendProfilePic: friendProfilePic,
-          friendUniqueID: uuidv4(),
-          combinedChatId: combinedChatId,
-        });
       }
+
       setIsClicked(false);
     } catch (error) {
-      console.log("error creating chat", error);
+      console.error("Error handling selected friend:", error);
+      setIsClicked(false);
     }
   };
 

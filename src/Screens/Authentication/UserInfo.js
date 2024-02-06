@@ -98,6 +98,7 @@ const UserInfo = ({ navigation }) => {
     await FIREBASE_AUTH.signOut();
     await AsyncStorage.removeItem("isLoggedIn");
     await AsyncStorage.removeItem("NAME");
+    await AsyncStorage.removeItem("docID");
     Alert.alert("Logged out successfully!");
     navigation.navigate("Login");
   };

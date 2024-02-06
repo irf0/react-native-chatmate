@@ -69,6 +69,7 @@ const Login = ({ navigation, newDocRefId }) => {
         AsyncStorage.setItem("PHONE", userData?.phone);
         AsyncStorage.setItem("NAME", userData?.name);
         AsyncStorage.setItem("PROFILEPIC", userData?.profilePic);
+        AsyncStorage.setItem("docID", userData?.uniqueID);
         try {
           const verificationId = await phoneProvider.verifyPhoneNumber(
             phoneNumber,

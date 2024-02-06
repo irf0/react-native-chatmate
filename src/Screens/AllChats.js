@@ -39,6 +39,7 @@ const AllChats = () => {
   const [isClicked, setIsClicked] = useState(false);
   const [addedStatus, setAddedStatus] = useState(false);
   const [friendChatData, setFriendChatData] = useState([]);
+  const [currentlyLoggedUserID, setCurrentlyLoggedUserID] = useState("");
 
   // useEffect(() => {
   //   const getAllFriends = async () => {
@@ -74,31 +75,68 @@ const AllChats = () => {
   //   getAllFriends();
   // }, []);
 
+  // useEffect(() => {
+  //   const getMessagesAddedStatus = async () => {
+  //     const userId = await AsyncStorage.getItem("docID");
+  //     const messagesCollection = collection(FIREBASE_DB, "chats");
+  //     try {
+  //       const q = query(
+  //         messagesCollection,
+  //         where("loggedUserUniqueId", "==", userId)
+  //       );
+  //       onSnapshot(q, (quer) => {
+  //         const queriesData = quer?.docs?.map((doc) => doc?.data());
+  //         const isChatClose = queriesData?.map((qr) => qr?.addedToContact);
+  //         setQueryResultData(queriesData);
+  //         setAddedStatus(isChatClose);
+  //       });
+  //     } catch (error) {
+  //       console.log(error);
+  //     }
+  //   };
+  //   getMessagesAddedStatus();
+  // }, []);
+
+  //Get all the chats
   useEffect(() => {
-    const getMessagesAddedStatus = async () => {
-      const userId = await AsyncStorage.getItem("docID");
-      const messagesCollection = collection(FIREBASE_DB, "chats");
+    const getUserMessages = async () => {
+      const loggedUserId = await AsyncStorage.getItem("docID");
+      const conversationRef = collection(FIREBASE_DB, "chats");
+
       try {
         const q = query(
-          messagesCollection,
-          where("loggedUserUniqueId", "==", userId)
+          conversationRef,
+          // where("user1UniqueID", "==", loggedUserId)
+          // where("user2UniqueId", "==", loggedUserId)
+          where("participant", "array-contains", loggedUserId)
         );
-        onSnapshot(q, (quer) => {
-          const queriesData = quer?.docs?.map((doc) => doc?.data());
-          const isChatClose = queriesData?.map((qr) => qr?.addedToContact);
-          setQueryResultData(queriesData);
-          setAddedStatus(isChatClose);
+
+        await getDocs(q).then((querySnapshot) => {
+          const queryData = querySnapshot?.docs?.map((doc) => doc?.data());
+          setQueryResultData(queryData);
+
+          setIsLoading(false);
         });
       } catch (error) {
-        console.log(error);
+        console.error("Error fetching chats:", error);
       }
     };
-    getMessagesAddedStatus();
+
+    getUserMessages();
   }, []);
 
   const toggleModal = () => {
     setModalVisible(!isModalVisible);
   };
+
+  useEffect(() => {
+    const getUserId = async () => {
+      const id = await AsyncStorage.getItem("docID");
+      console.log("From AllChats", id);
+      setCurrentlyLoggedUserID(id);
+    };
+    getUserId();
+  }, []);
 
   const handleNavigateToChatscreen = async (
     friendName,
@@ -153,28 +191,53 @@ const AllChats = () => {
             }}
             key={qr?.friendUniqueID}
           >
-            {qr?.addedToContact && (
+            {qr?.conversation.length > 0 && (
               <TouchableOpacity
                 onPress={() =>
                   handleNavigateToChatscreen(
-                    qr?.friendName,
-                    qr?.friendPhone,
-                    qr?.friendProfilePic,
-                    qr?.friendUniqueID,
-                    qr?.chatId
+                    qr?.user1UniqueID === currentlyLoggedUserID
+                      ? qr?.user2Name
+                      : qr?.user1Name,
+
+                    qr?.user1UniqueID === currentlyLoggedUserID
+                      ? qr?.user2Phone
+                      : qr?.user1Phone,
+
+                    qr?.user1UniqueID === currentlyLoggedUserID
+                      ? qr?.user2ProfilePic
+                      : qr?.user1ProfilePic,
+
+                    qr?.user1UniqueID === currentlyLoggedUserID
+                      ? qr?.user1UniqueID
+                      : qr?.user1UniqueID,
+                    qr?.chatId,
+                    qr?.combinedChatId
                   )
                 }
               >
                 <View style={{ flexDirection: "row", gap: 10, marginTop: 5 }}>
                   <TouchableOpacity onPress={toggleModal}>
                     <Image
-                      source={{ uri: qr?.friendProfilePic }}
+                      source={{
+                        uri:
+                          qr.user1UniqueID === currentlyLoggedUserID
+                            ? qr?.user2ProfilePic
+                            : qr?.user1ProfilePic,
+                      }}
                       style={{ height: 50, width: 50, borderRadius: 36 }}
                     />
                   </TouchableOpacity>
                   <View>
-                    <Text>{qr?.friendName}</Text>
-                    <Text>{qr?.friendPhone}</Text>
+                    <Text>
+                      {qr.user1UniqueID === currentlyLoggedUserID
+                        ? qr?.user2Name
+                        : qr?.user1Name}
+                    </Text>
+                    <Text>
+                      {qr.user1UniqueID === currentlyLoggedUserID
+                        ? qr?.user2Phone
+                        : qr?.user1Phone}
+                    </Text>
                   </View>
 
                   {/* To view image in large */}
@@ -187,7 +250,12 @@ const AllChats = () => {
                   >
                     <View style={styles.modalContainer}>
                       <Image
-                        source={{ uri: qr?.friendProfilePic }}
+                        source={{
+                          uri:
+                            qr?.user1UniqueID === currentlyLoggedUserID
+                              ? qr?.user2ProfilePic
+                              : qr?.user1ProfilePic,
+                        }}
                         style={styles.largeProfilePic}
                       />
 
