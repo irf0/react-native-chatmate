@@ -51,21 +51,21 @@ const Home = ({ navigation }) => {
       }}
     >
       <Tab.Screen
-        name="Chats"
-        component={() => <AllChats />}
-        options={{
-          tabBarLabelStyle: {
-            color: "white",
-          },
-        }}
-      />
-      <Tab.Screen
         name="Contacts"
         component={() => <Contacts />}
         options={{
           tabBarOptions: {
             activeTintColor: "red",
           },
+          tabBarLabelStyle: {
+            color: "white",
+          },
+        }}
+      />
+      <Tab.Screen
+        name="Chats"
+        component={() => <AllChats />}
+        options={{
           tabBarLabelStyle: {
             color: "white",
           },

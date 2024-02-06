@@ -88,6 +88,7 @@ const ChatScreen = ({ navigation, route }) => {
   const [recordBtnSwipe, setRecordBtnSwipe] = useState(false);
   const [recordingCounter, setRecordingCounter] = useState(0);
   const [isStillRecording, setIsStillRecording] = useState(false);
+  const [conversationData, setConversationData] = useState([]);
   const [key, setKey] = useState(0);
 
   useLayoutEffect(() => {
@@ -136,6 +137,7 @@ const ChatScreen = ({ navigation, route }) => {
           const docData = snapshot.data();
           const conversation = docData?.conversation;
           conversationArray = [...conversationArray, ...conversation];
+          conversationArray.map((conv) => setConversationData(conv));
           setRecievedMessages(conversationArray);
         });
 
@@ -149,6 +151,8 @@ const ChatScreen = ({ navigation, route }) => {
 
     getUserMessages();
   }, [combinedChatId]);
+
+  // console.log(conversationData);
 
   //Format time of messages(chats)
   const formatTime = (timestamp) => {
@@ -355,17 +359,11 @@ const ChatScreen = ({ navigation, route }) => {
     if (recording) {
       try {
         await recording.stopAndUnloadAsync();
+        setIsStillRecording(false);
         const { sound: newSound, status } =
           await recording.createNewLoadedSoundAsync();
         setSound(newSound);
-        setAudioUploading(true);
-        await uploadAudioToFirebase(recording.getURI());
-        setAudioUploading(false);
-        if (!audioUploading) {
-          await sendAudioMessage(friendUniqueID, status.durationMillis);
-          setIsStillRecording(false);
-          setRecording(null);
-        }
+        await uploadAudioToFirebase(recording.getURI(), status.durationMillis);
         // Do something with the recorded sound, e.g., save to state or play it
         console.log("Recording stopped. Duration:", status.durationMillis);
         setDuration(status.durationMillis);
@@ -374,6 +372,7 @@ const ChatScreen = ({ navigation, route }) => {
         console.error("Error stopping recording:", error);
       } finally {
         setRecordingCounter(0);
+        setIsStillRecording(false);
       }
     }
   };
@@ -407,7 +406,7 @@ const ChatScreen = ({ navigation, route }) => {
     };
   }, [recordingCounter]);
 
-  const uploadAudioToFirebase = async (audioFileUri) => {
+  const uploadAudioToFirebase = async (audioFileUri, duration) => {
     try {
       setAudioUploading(true);
       const response = await fetch(audioFileUri);
@@ -429,6 +428,11 @@ const ChatScreen = ({ navigation, route }) => {
       // Set state values and then send the message
       setUploadedAudioURL(url);
       setAudioUploading(false);
+      if (!audioUploading) {
+        await sendAudioMessage(friendUniqueID, duration);
+        // setIsStillRecording(false);
+        setRecording(null);
+      }
     } catch (error) {
       console.error("Error while uploading file:", error);
       setAudioUploading(false);
@@ -579,6 +583,7 @@ const ChatScreen = ({ navigation, route }) => {
               type: "image",
               msgId: uuidv4(),
               time: new Date(),
+              isSeen: false,
             }),
           },
           { merge: true }
@@ -607,6 +612,7 @@ const ChatScreen = ({ navigation, route }) => {
               msgId: uuidv4(),
               duration: audioDuration,
               time: new Date(),
+              isSeen: false,
             }),
           },
           { merge: true }
@@ -631,10 +637,11 @@ const ChatScreen = ({ navigation, route }) => {
         {
           conversation: arrayUnion({
             msg: messageInput,
-            sendBy: senderId !== loggedUserId ? "user" : "receiver",
+            sendBy: senderId === loggedUserId ? "user" : "receiver",
             type: "text",
             msgId: uuidv4(),
             time: new Date(),
+            isSeen: false,
           }),
         },
         { merge: true }
@@ -643,6 +650,40 @@ const ChatScreen = ({ navigation, route }) => {
       console.log("error sending msg", error);
     }
   };
+
+  //Mark as Seen
+  useEffect(() => {
+    if (conversationData.sendBy !== "user" && !conversationData?.isSeen) {
+      const markMessageSeen = async () => {
+        try {
+          const messageDocRef = doc(FIREBASE_DB, "chats", combinedChatId);
+
+          // Fetching the doc data
+          const currentDoc = await getDoc(messageDocRef);
+          const currentData = currentDoc.data();
+
+          // Updating the "isSeen" status of the message
+          const updatedConversation = currentData.conversation.map(
+            (message) => {
+              if (message.msgId === conversationData.msgId) {
+                return { ...message, isSeen: true };
+              }
+              return message;
+            }
+          );
+
+          await updateDoc(messageDocRef, { conversation: updatedConversation });
+
+          // console.log("Message marked as read successfully");
+        } catch (error) {
+          console.error("Error marking message as read", error);
+        }
+      };
+      markMessageSeen();
+    }
+
+    // Check if the last message is from another user and mark it as seen
+  }, [conversationData, combinedChatId]);
 
   //Recording stop-watch
   useEffect(() => {
@@ -658,36 +699,11 @@ const ChatScreen = ({ navigation, route }) => {
     return () => clearInterval(intervalId);
   }, [recording]);
 
-  const RightSwipeActions = () => {
-    return (
-      <View
-        style={{
-          flex: 1,
-          backgroundColor: "#f56653",
-          justifyContent: "center",
-        }}
-      >
-        <View
-          style={{
-            color: "white",
-            paddingHorizontal: 10,
-            fontWeight: "600",
-            paddingHorizontal: 30,
-            paddingVertical: 20,
-          }}
-        >
-          <MaterialCommunityIcons name="delete" size={30} color="white" />
-        </View>
-      </View>
-    );
-  };
-  // console.log(recordBtnSwipe);
-
   return (
     <>
       <ImageBackground
         style={styles.imageBackground}
-        source={require("../../assets/chatbg4.png")}
+        source={require("../../assets/chat-bg.png")}
       >
         <FlatList
           ref={flatListRef}
@@ -867,16 +883,26 @@ const ChatScreen = ({ navigation, route }) => {
                           }}
                         >
                           {item?.msg}
-                          {"  "}
-                          <Text
-                            style={{
-                              color: "#e2e1e6",
-                              fontSize: 11,
-                            }}
-                          >
-                            {formatTime(item?.time)}
-                          </Text>
                         </Text>
+                      )}
+
+                      <Text
+                        style={{
+                          color:
+                            item?.sendBy === "user" ? "#e2e1e6" : "#666669",
+                          fontSize: 11,
+                          textAlign: item?.sendBy === "user" ? "right" : "left",
+                        }}
+                      >
+                        {formatTime(item?.time)}
+                      </Text>
+                      {item?.sendBy === "user" && item.isSeen && (
+                        <Ionicons
+                          style={{ textAlign: "right" }}
+                          name="checkmark-done-sharp"
+                          color="#6cf577"
+                          size={16}
+                        />
                       )}
                     </View>
                   </View>
@@ -979,7 +1005,7 @@ const ChatScreen = ({ navigation, route }) => {
 
           <FontAwesome5
             onPress={toggleEmojiPicker}
-            name="smile-wink"
+            name="smile"
             size={28}
             color={"#5b41f0"}
             style={{
@@ -1003,7 +1029,7 @@ const ChatScreen = ({ navigation, route }) => {
               />
             ) : (
               <MaterialCommunityIcons
-                name={!isStillRecording ? "image-multiple-outline" : ""}
+                name={!isStillRecording ? "image-multiple" : ""}
                 size={26}
                 color={"#5b41f0"}
                 style={{
@@ -1030,7 +1056,7 @@ const ChatScreen = ({ navigation, route }) => {
               />
             ) : (
               <MaterialCommunityIcons
-                name={!isStillRecording ? "camera-outline" : ""}
+                name={!isStillRecording ? "camera" : ""}
                 size={28}
                 color={"#5b41f0"}
                 style={{
@@ -1051,7 +1077,7 @@ const ChatScreen = ({ navigation, route }) => {
                   bottom: responsiveHeight(3.2),
                   right: responsiveWidth(15),
                 }}
-                color={"#fff"}
+                color={"#5b41f0"}
                 size={"large"}
               />
             ) : (

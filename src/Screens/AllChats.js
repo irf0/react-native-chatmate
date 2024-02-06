@@ -75,28 +75,6 @@ const AllChats = () => {
   //   getAllFriends();
   // }, []);
 
-  // useEffect(() => {
-  //   const getMessagesAddedStatus = async () => {
-  //     const userId = await AsyncStorage.getItem("docID");
-  //     const messagesCollection = collection(FIREBASE_DB, "chats");
-  //     try {
-  //       const q = query(
-  //         messagesCollection,
-  //         where("loggedUserUniqueId", "==", userId)
-  //       );
-  //       onSnapshot(q, (quer) => {
-  //         const queriesData = quer?.docs?.map((doc) => doc?.data());
-  //         const isChatClose = queriesData?.map((qr) => qr?.addedToContact);
-  //         setQueryResultData(queriesData);
-  //         setAddedStatus(isChatClose);
-  //       });
-  //     } catch (error) {
-  //       console.log(error);
-  //     }
-  //   };
-  //   getMessagesAddedStatus();
-  // }, []);
-
   //Get all the chats
   useEffect(() => {
     const getUserMessages = async () => {
@@ -292,14 +270,14 @@ const AllChats = () => {
         ))
       ) : (
         <>
-          {!isLoading && showNothingImage && (
+          {!isLoading && (
             <View
               style={{
                 justifyContent: "center",
                 alignSelf: "center",
               }}
             >
-              <Image
+              {/* <Image
                 source={require("../../assets/nothingtodo.png")}
                 resizeMode="contain"
                 style={{
@@ -309,7 +287,7 @@ const AllChats = () => {
                   borderRadius: 6,
                   marginTop: 25,
                 }}
-              />
+              /> */}
               <Text
                 style={{
                   textAlign: "center",
@@ -321,7 +299,7 @@ const AllChats = () => {
                   alignSelf: "center",
                 }}
               >
-                Not Found Any Match!
+                Not contacts at the mmoment!
               </Text>
             </View>
           )}

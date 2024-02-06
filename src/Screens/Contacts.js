@@ -159,6 +159,53 @@ const Contacts = () => {
     }
   };
 
+  //Delete a contact
+
+  const deleteMessage = async (contactId) => {
+    const loggedUserID = await AsyncStorage.getItem("docID");
+    try {
+      const contactDocRef = doc(FIREBASE_DB, "users", loggedUserID);
+
+      // Fetch the current document data
+      const currentDoc = await getDoc(contactDocRef);
+      const currentData = currentDoc?.data();
+      console.log(currentData);
+
+      const updatedFriendsList = currentData.friendsList.filter(
+        (contact) => contact.friendUniqueID !== contactId
+      );
+
+      await updateDoc(contactDocRef, { friendsList: updatedFriendsList });
+
+      console.log("Contact deleted successfully");
+    } catch (error) {
+      console.error("Error deleting contact", error);
+    }
+  };
+
+  const showAlert = (contactId) => {
+    Alert.alert(
+      "Are you sure?",
+      "You want to delete this contact?",
+
+      [
+        {
+          text: "Don't delete",
+          style: "cancel",
+        },
+        {
+          text: "Yes, Delete",
+          style: "destructive",
+
+          onPress: () => {
+            deleteMessage(contactId);
+          },
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
   return (
     <View>
       {isLoading && (
@@ -193,6 +240,7 @@ const Contacts = () => {
             key={qr?.friendUniqueID}
           >
             <TouchableOpacity
+              onLongPress={() => showAlert(qr?.friendUniqueID)}
               onPress={() =>
                 handleSelectFriend(
                   qr?.friendName,
@@ -257,14 +305,17 @@ const Contacts = () => {
         ))
       ) : (
         <>
-          {!isLoading && showNothingImage && (
+          {!isLoading && (
             <View
               style={{
                 justifyContent: "center",
                 alignSelf: "center",
+                marginTop: responsiveHeight(30),
               }}
             >
-              <Text style={{ textAlign: "center" }}>Nothing To Show </Text>
+              <Text style={{ textAlign: "center", fontSize: 22 }}>
+                No Contacts to Show...{" "}
+              </Text>
               {/* <Image
                 source={require("../../assets/nothingtodo.png")}
                 resizeMode="contain"
