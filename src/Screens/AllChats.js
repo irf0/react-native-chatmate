@@ -26,57 +26,24 @@ import {
 import { FIREBASE_DB } from "../../Firebase";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from "@react-navigation/native";
-import { responsiveHeight } from "react-native-responsive-dimensions";
+import {
+  responsiveHeight,
+  responsiveWidth,
+} from "react-native-responsive-dimensions";
 import "react-native-get-random-values";
 import { v4 as uuidv4 } from "uuid";
-
+import MaterialCommunityIcon from "react-native-vector-icons/MaterialCommunityIcons";
 const AllChats = () => {
   const navigation = useNavigation();
   const [isLoading, setIsLoading] = useState(false);
   const [queryResultData, setQueryResultData] = useState(null);
   const [isModalVisible, setModalVisible] = useState(false);
-  const [showNothingImage, setShowNothingImage] = useState(false);
-  const [isClicked, setIsClicked] = useState(false);
-  const [addedStatus, setAddedStatus] = useState(false);
-  const [friendChatData, setFriendChatData] = useState([]);
   const [currentlyLoggedUserID, setCurrentlyLoggedUserID] = useState("");
-
-  // useEffect(() => {
-  //   const getAllFriends = async () => {
-  //     try {
-  //       setIsLoading(true);
-  //       const loggedUserID = await AsyncStorage.getItem("docID");
-  //       const friendsRef = collection(FIREBASE_DB, "users");
-  //       const q = query(friendsRef, where("uniqueID", "==", loggedUserID));
-  //       const unsubscribe = onSnapshot(q, (querySnapshot) => {
-  //         const queryData = querySnapshot?.docs?.map(
-  //           (doc) => doc?.data().friendsList
-  //         );
-  //         if (queryData.length < 1) {
-  //           setShowNothingImage(true);
-  //         }
-  //         const flattenedArray = [];
-  //         queryData.forEach((subArray) => {
-  //           subArray.forEach((item) => {
-  //             flattenedArray.push(item);
-  //           });
-  //         });
-  //         setQueryResultData(flattenedArray);
-  //         // console.log("contacts list result", queryData);
-  //         setIsLoading(false);
-  //       });
-  //       return () => unsubscribe();
-  //     } catch (error) {
-  //       console.log(error);
-  //       Alert.alert("An error occuring during search. Please try again");
-  //     }
-  //   };
-
-  //   getAllFriends();
-  // }, []);
+  const [lastMessage, setLastMessage] = useState("");
 
   //Get all the chats
   useEffect(() => {
+    setIsLoading(true);
     const getUserMessages = async () => {
       const loggedUserId = await AsyncStorage.getItem("docID");
       const conversationRef = collection(FIREBASE_DB, "chats");
@@ -89,10 +56,23 @@ const AllChats = () => {
           where("participant", "array-contains", loggedUserId)
         );
 
-        await getDocs(q).then((querySnapshot) => {
+        const unsubscribe = onSnapshot(q, (querySnapshot) => {
+          querySnapshot.forEach((doc) => {
+            const conversation = doc.data().conversation;
+            if (conversation && conversation.length > 0) {
+              const lastMessageInDoc = conversation[conversation.length - 1];
+              // if (
+              //   lastMessageInDoc.sendBy !== "user" &&
+              //   lastMessageInDoc?.isSeen
+              // ) {
+              setLastMessage(lastMessageInDoc);
+              // }
+            }
+            return () => unsubscribe();
+          });
+
           const queryData = querySnapshot?.docs?.map((doc) => doc?.data());
           setQueryResultData(queryData);
-
           setIsLoading(false);
         });
       } catch (error) {
@@ -102,6 +82,8 @@ const AllChats = () => {
 
     getUserMessages();
   }, []);
+
+  // console.log("last msg from allchats", lastMessage);
 
   const toggleModal = () => {
     setModalVisible(!isModalVisible);
@@ -121,6 +103,7 @@ const AllChats = () => {
     friendPhone,
     friendProfilePic,
     friendUniqueID,
+    friendTyping,
     combinedChatId
   ) => {
     try {
@@ -129,6 +112,7 @@ const AllChats = () => {
         friendPhone: friendPhone,
         friendProfilePic: friendProfilePic,
         friendUniqueID: friendUniqueID,
+        friendTyping: friendTyping,
         combinedChatId: combinedChatId,
       });
     } catch (error) {
@@ -149,7 +133,7 @@ const AllChats = () => {
         >
           <ActivityIndicator color={"#5b41f0"} size={45} />
           <Text style={{ fontWeight: "bold", color: "#5b41f0" }}>
-            Contacts Loading...
+            Chats Loading...
           </Text>
         </View>
       )}
@@ -169,85 +153,152 @@ const AllChats = () => {
             }}
             key={qr?.friendUniqueID}
           >
-            {qr?.conversation.length > 0 && (
-              <TouchableOpacity
-                onPress={() =>
-                  handleNavigateToChatscreen(
-                    qr?.user1UniqueID === currentlyLoggedUserID
-                      ? qr?.user2Name
-                      : qr?.user1Name,
+            <TouchableOpacity
+              style={{ flexDirection: "row" }}
+              onPress={() =>
+                handleNavigateToChatscreen(
+                  qr?.user1UniqueID === currentlyLoggedUserID
+                    ? qr?.user2Name
+                    : qr?.user1Name,
 
-                    qr?.user1UniqueID === currentlyLoggedUserID
-                      ? qr?.user2Phone
-                      : qr?.user1Phone,
+                  qr?.user1UniqueID === currentlyLoggedUserID
+                    ? qr?.user2Phone
+                    : qr?.user1Phone,
 
-                    qr?.user1UniqueID === currentlyLoggedUserID
-                      ? qr?.user2ProfilePic
-                      : qr?.user1ProfilePic,
+                  qr?.user1UniqueID === currentlyLoggedUserID
+                    ? qr?.user2ProfilePic
+                    : qr?.user1ProfilePic,
 
-                    qr?.user1UniqueID === currentlyLoggedUserID
-                      ? qr?.user1UniqueID
-                      : qr?.user1UniqueID,
-                    qr?.chatId,
-                    qr?.combinedChatId
-                  )
-                }
+                  qr?.user1UniqueID === currentlyLoggedUserID
+                    ? qr?.user2UniqueID
+                    : qr?.user1UniqueID,
+                  qr?.user1UniqueID === currentlyLoggedUserID
+                    ? qr?.user2isTyping
+                    : qr?.user1isTyping,
+                  qr?.chatId,
+                  qr?.combinedChatId
+                )
+              }
+            >
+              <View
+                style={{
+                  flexDirection: "row",
+                  gap: 10,
+                  marginTop: 5,
+                }}
               >
-                <View style={{ flexDirection: "row", gap: 10, marginTop: 5 }}>
-                  <TouchableOpacity onPress={toggleModal}>
+                <TouchableOpacity onPress={toggleModal}>
+                  <Image
+                    source={{
+                      uri:
+                        // qr.user1UniqueID === currentlyLoggedUserID
+                        //   ? qr?.user2ProfilePic
+                        qr?.user1ProfilePic,
+                    }}
+                    style={{ height: 50, width: 50, borderRadius: 36 }}
+                  />
+                </TouchableOpacity>
+                <View>
+                  <Text style={{ fontSize: 18 }}>
+                    {/* {qr.user1UniqueID === currentlyLoggedUserID
+                      ? qr?.user2Name */}
+                    {qr?.user1Name}
+                  </Text>
+
+                  {lastMessage?.type === "text" && (
+                    <Text>
+                      {lastMessage.msg
+                        ? lastMessage.msg.length > 4
+                          ? (lastMessage?.sendBy === "user"
+                              ? "You"
+                              : qr?.user1Name.split(" ")[0]) +
+                            " : " +
+                            `${lastMessage.msg.substring(0, 15)}...`
+                          : (lastMessage?.sendBy === "user"
+                              ? "You"
+                              : qr?.user1Name.split(" ")[0]) +
+                            " : " +
+                            lastMessage.msg
+                        : null}
+                    </Text>
+                  )}
+                  {lastMessage?.type == "image" && (
+                    <View style={{ flexDirection: "row", gap: 3 }}>
+                      <MaterialCommunityIcon
+                        name="message-image-outline"
+                        size={26}
+                        color={"#666669"}
+                      />
+                      <Text>Photo</Text>
+                    </View>
+                  )}
+                  {lastMessage?.type == "audio" && (
+                    <View style={{ flexDirection: "row", gap: 3 }}>
+                      <MaterialCommunityIcon
+                        name="microphone-outline"
+                        size={26}
+                        color={"#666669"}
+                      />
+                      <Text>Voice</Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* To view image in large */}
+
+                <Modal
+                  animationType="slide"
+                  transparent={false}
+                  visible={isModalVisible}
+                  onRequestClose={toggleModal}
+                >
+                  <View style={styles.modalContainer}>
                     <Image
                       source={{
                         uri:
-                          qr.user1UniqueID === currentlyLoggedUserID
+                          qr?.user1UniqueID === currentlyLoggedUserID
                             ? qr?.user2ProfilePic
                             : qr?.user1ProfilePic,
                       }}
-                      style={{ height: 50, width: 50, borderRadius: 36 }}
+                      style={styles.largeProfilePic}
                     />
-                  </TouchableOpacity>
-                  <View>
-                    <Text>
-                      {qr.user1UniqueID === currentlyLoggedUserID
-                        ? qr?.user2Name
-                        : qr?.user1Name}
-                    </Text>
-                    <Text>
-                      {qr.user1UniqueID === currentlyLoggedUserID
-                        ? qr?.user2Phone
-                        : qr?.user1Phone}
+
+                    <TouchableOpacity
+                      onPress={toggleModal}
+                      style={styles.closeButton}
+                    >
+                      <Text style={styles.closeButtonText}>Close</Text>
+                    </TouchableOpacity>
+                  </View>
+                </Modal>
+              </View>
+              {lastMessage &&
+                lastMessage?.sendBy !== "user" &&
+                !lastMessage?.isSeen && (
+                  <View
+                    style={{
+                      padding: 10,
+                      borderRadius: 50,
+                      height: 35,
+                      width: 35,
+                      backgroundColor: "#5b41f0",
+                      alignSelf: "flex-start",
+                      position: "absolute",
+                      right: responsiveWidth(-30),
+                    }}
+                  >
+                    <Text
+                      style={{
+                        textAlign: "center",
+                        textAlignVertical: "top",
+                        color: "#fff",
+                      }}
+                    >
+                      1
                     </Text>
                   </View>
-
-                  {/* To view image in large */}
-
-                  <Modal
-                    animationType="slide"
-                    transparent={false}
-                    visible={isModalVisible}
-                    onRequestClose={toggleModal}
-                  >
-                    <View style={styles.modalContainer}>
-                      <Image
-                        source={{
-                          uri:
-                            qr?.user1UniqueID === currentlyLoggedUserID
-                              ? qr?.user2ProfilePic
-                              : qr?.user1ProfilePic,
-                        }}
-                        style={styles.largeProfilePic}
-                      />
-
-                      <TouchableOpacity
-                        onPress={toggleModal}
-                        style={styles.closeButton}
-                      >
-                        <Text style={styles.closeButtonText}>Close</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </Modal>
-                </View>
-              </TouchableOpacity>
-            )}
+                )}
+            </TouchableOpacity>
             {/* <TouchableOpacity
                 style={{
                   borderWidth: 1,
@@ -299,7 +350,7 @@ const AllChats = () => {
                   alignSelf: "center",
                 }}
               >
-                Not contacts at the mmoment!
+                Not contacts at the moment!
               </Text>
             </View>
           )}

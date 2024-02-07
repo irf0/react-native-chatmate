@@ -31,6 +31,13 @@ function Tab3() {
   );
 }
 
+//Make it normal case
+const CustomTabLabel = ({ focused, label }) => {
+  const formattedLabel =
+    label.charAt(0).toUpperCase() + label.slice(1).toLowerCase();
+  return <Text style={{ color: "white" }}>{formattedLabel}</Text>;
+};
+
 const Home = ({ navigation }) => {
   return (
     <Tab.Navigator
@@ -51,21 +58,10 @@ const Home = ({ navigation }) => {
       }}
     >
       <Tab.Screen
-        name="Contacts"
-        component={() => <Contacts />}
-        options={{
-          tabBarOptions: {
-            activeTintColor: "red",
-          },
-          tabBarLabelStyle: {
-            color: "white",
-          },
-        }}
-      />
-      <Tab.Screen
         name="Chats"
         component={() => <AllChats />}
         options={{
+          tabBarLabel: () => <CustomTabLabel label="Chats" />,
           tabBarLabelStyle: {
             color: "white",
           },
@@ -76,6 +72,21 @@ const Home = ({ navigation }) => {
         name="Calls"
         component={() => <Tab3 />}
         options={{
+          tabBarLabel: () => <CustomTabLabel label="Calls" />,
+
+          tabBarOptions: {
+            activeTintColor: "red",
+          },
+          tabBarLabelStyle: {
+            color: "white",
+          },
+        }}
+      />
+      <Tab.Screen
+        name="Contacts"
+        component={() => <Contacts />}
+        options={{
+          tabBarLabel: () => <CustomTabLabel label="Contacts" />,
           tabBarOptions: {
             activeTintColor: "red",
           },

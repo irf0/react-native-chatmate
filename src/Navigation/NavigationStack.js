@@ -221,34 +221,7 @@ const NavigationStack = () => {
               headerLeft: () => <TouchableOpacity>{""}</TouchableOpacity>,
             }}
           />
-          {/* <Stack.Screen
-            name="Audio"
-            component={AudioRecord}
-            options={{
-              headerShown: true,
-              headerStyle: {
-                elevation: 0,
-                backgroundColor: "#5b41f0",
-              },
-              headerTitleStyle: {
-                color: "#fff",
-              },
-            }}
-          /> */}
-          {/* <Stack.Screen
-            name="Audio"
-            component={AudioPlayer}
-            options={{
-              headerShown: true,
-              headerStyle: {
-                elevation: 0,
-                backgroundColor: "#5b41f0",
-              },
-              headerTitleStyle: {
-                color: "#fff",
-              },
-            }}
-          /> */}
+
           <Stack.Screen
             name="Audio"
             component={AudioTest}
