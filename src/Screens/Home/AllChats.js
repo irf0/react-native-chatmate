@@ -23,7 +23,7 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
-import { FIREBASE_DB } from "../../Firebase";
+import { FIREBASE_DB } from "../../../Firebase";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from "@react-navigation/native";
 import {
@@ -328,17 +328,6 @@ const AllChats = () => {
                 alignSelf: "center",
               }}
             >
-              {/* <Image
-                source={require("../../assets/nothingtodo.png")}
-                resizeMode="contain"
-                style={{
-                  height: 400,
-                  width: 350,
-                  alignSelf: "center",
-                  borderRadius: 6,
-                  marginTop: 25,
-                }}
-              /> */}
               <Text
                 style={{
                   textAlign: "center",

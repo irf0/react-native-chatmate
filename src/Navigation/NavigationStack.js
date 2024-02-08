@@ -1,7 +1,7 @@
 import { View, Text, TouchableOpacity, Alert } from "react-native";
 import React, { useEffect, useState } from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import Home from "../Screens/Home";
+import Home from "../Screens/Home/Home";
 import Registration from "../Screens/Authentication/Registration";
 import Login from "../Screens/Authentication/Login";
 import UserInfo from "../Screens/Authentication/UserInfo";
@@ -10,13 +10,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { responsiveFontSize } from "react-native-responsive-dimensions";
 import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons";
 import Entypo from "react-native-vector-icons/Entypo";
-import Search from "../Screens/Search";
+import Search from "../Screens/Home/Search";
 import { useNavigation } from "@react-navigation/native";
 import { FIREBASE_AUTH } from "../../Firebase";
-import ChatScreen from "../Screens/ChatScreen";
-import AudioRecord from "../Screens/AudioRecord";
-import AudioPlayer from "../Screens/AudioPlayer";
-import AudioTest from "../Screens/AudioTest";
+import ChatScreen from "../Screens/Home/ChatScreen";
+import VoiceCall from "../Screens/Calls/VoiceCall";
+import VideoCall from "../Screens/Calls/VideoCall";
 
 const Stack = createNativeStackNavigator();
 
@@ -221,10 +220,9 @@ const NavigationStack = () => {
               headerLeft: () => <TouchableOpacity>{""}</TouchableOpacity>,
             }}
           />
-
           <Stack.Screen
-            name="Audio"
-            component={AudioTest}
+            name="VoiceCall"
+            component={VoiceCall}
             options={{
               headerShown: true,
               headerStyle: {
@@ -234,6 +232,22 @@ const NavigationStack = () => {
               headerTitleStyle: {
                 color: "#fff",
               },
+              headerLeft: () => <TouchableOpacity>{""}</TouchableOpacity>,
+            }}
+          />
+          <Stack.Screen
+            name="VideoCall"
+            component={VideoCall}
+            options={{
+              headerShown: true,
+              headerStyle: {
+                elevation: 0,
+                backgroundColor: "#5b41f0",
+              },
+              headerTitleStyle: {
+                color: "#fff",
+              },
+              headerLeft: () => <TouchableOpacity>{""}</TouchableOpacity>,
             }}
           />
         </Stack.Navigator>

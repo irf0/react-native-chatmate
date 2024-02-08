@@ -1,7 +1,7 @@
 import {
   View,
   Text,
-  Image,
+  // Image,
   StyleSheet,
   TextInput,
   FlatList,
@@ -28,7 +28,7 @@ import FontAwesome from "react-native-vector-icons/FontAwesome5";
 import EmojiPicker from "rn-emoji-keyboard";
 import FontAwesome5 from "react-native-vector-icons/FontAwesome5";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { FIREBASE_DB } from "../../Firebase";
+import { FIREBASE_DB } from "../../../Firebase";
 import {
   addDoc,
   arrayUnion,
@@ -47,11 +47,7 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import "react-native-get-random-values";
 import { v4 as uuidv4 } from "uuid";
 import { Audio } from "expo-av";
-import {
-  GestureHandlerRootView,
-  Swipeable,
-} from "react-native-gesture-handler";
-
+import { Image } from "expo-image";
 const ChatScreen = ({ navigation, route }) => {
   const {
     friendName,
@@ -98,7 +94,9 @@ const ChatScreen = ({ navigation, route }) => {
   const [imageSending, setImageSending] = useState(false);
   const [audioSending, setAudioSending] = useState(false);
 
-  const [key, setKey] = useState(0);
+  //expo-image blur hash
+  const blurhash =
+    "|rF?hV%2WCj[ayj[a|j[az_NaeWBj@ayfRayfQfQM{M|azj[azf6fQfQfQIpWXofj[ayj[j[fQayWCoeoeaya}j[ayfQa{oLj?j[WVj[ayayj[fQoff7azayj[ayj[j[ayofayayayj[fQj[ayayj[ayfjj[j[ayjuayj[";
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -118,15 +116,56 @@ const ChatScreen = ({ navigation, route }) => {
         <View
           style={{
             flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: responsiveWidth(14),
           }}
         >
-          <Image
-            source={{ uri: friendProfilePic }}
-            style={{ width: 40, height: 40, borderRadius: 20, marginRight: 8 }}
-          />
-          <View>
-            <Text style={{ color: "white", fontSize: 18 }}>{friendName}</Text>
-            <Text style={{ color: "white", fontSize: 12 }}>{friendPhone}</Text>
+          <View style={{ flexDirection: "row" }}>
+            <Image
+              source={friendProfilePic}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                marginRight: 8,
+              }}
+            />
+            <View>
+              <Text style={{ color: "white", fontSize: 18 }}>{friendName}</Text>
+
+              {isTyping && (
+                <Text
+                  style={{
+                    color: "white",
+                    fontSize: 12,
+                    marginBottom: 4,
+                    alignSelf: "flex-start",
+                  }}
+                >
+                  Typing...
+                </Text>
+              )}
+            </View>
+          </View>
+
+          <View style={{ flexDirection: "row", gap: responsiveWidth(5) }}>
+            <TouchableOpacity onPress={() => navigation.navigate("VoiceCall")}>
+              <Ionicons
+                name="call"
+                size={26}
+                color={"#fff"}
+                style={{ textAlign: "right", alignSelf: "center" }}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => navigation.navigate("VideoCall")}>
+              <Ionicons
+                name="videocam"
+                size={27}
+                color={"#fff"}
+                style={{ textAlign: "right", alignSelf: "center" }}
+              />
+            </TouchableOpacity>
           </View>
         </View>
       ),
@@ -161,10 +200,6 @@ const ChatScreen = ({ navigation, route }) => {
 
     getUserMessages();
   }, [combinedChatId]);
-
-  // console.log("last msg", lastMessage);
-  // console.log("user1 typing", typingStatus);
-  // console.log(conversationData);
 
   //Format time of messages(chats)
   const formatTime = (timestamp) => {
@@ -323,27 +358,6 @@ const ChatScreen = ({ navigation, route }) => {
     }
   };
 
-  //Send Image Message
-  // useEffect(() => {
-  //   const sendImageMediaMessage = async () => {
-  //     try {
-  //       if (uploadedMediaURL && !mediaUploading && messageInput === "") {
-  //         await sendImageMessage(friendUniqueID);
-  //         setUploadedMediaURL("");
-  //         setMediaUploading(false);
-  //       }
-  //     } catch (error) {
-  //       console.error("Error sending media message:", error);
-  //     }
-  //   };
-
-  //   sendImageMediaMessage();
-
-  //   return () => {
-  //     setUploadedMediaURL(null);
-  //   };
-  // }, [uploadedMediaURL]);
-
   //------------Audio Message Department👇---------------//
 
   //Start recording
@@ -453,8 +467,6 @@ const ChatScreen = ({ navigation, route }) => {
       setAudioUploading(false);
     }
   };
-
-  console.log("audio sending", audioSending);
 
   useEffect(() => {
     // Set up an event listener for playback status updates
@@ -647,30 +659,25 @@ const ChatScreen = ({ navigation, route }) => {
 
   const sendTextMessage = async (senderId) => {
     const loggedUserId = await AsyncStorage.getItem("docID");
-
     try {
       const messageDocRef = doc(FIREBASE_DB, "chats", combinedChatId);
       setMessageInput("");
       setModalVisible(false);
-      if (messageInput !== "") {
-        await updateDoc(
-          messageDocRef,
-          {
-            conversation: arrayUnion({
-              msg: messageInput,
-              sendBy: senderId !== loggedUserId ? "user" : "receiver",
-              type: "text",
-              msgId: uuidv4(),
-              time: new Date(),
-              isSeen: false,
-            }),
-            user1isTyping: false,
-          },
-          { merge: true }
-        );
-      } else {
-        Alert.alert("Message cannot be empty!");
-      }
+      await updateDoc(
+        messageDocRef,
+        {
+          conversation: arrayUnion({
+            msg: messageInput,
+            sendBy: senderId !== loggedUserId ? "user" : "receiver",
+            type: "text",
+            msgId: uuidv4(),
+            time: new Date(),
+            isSeen: false,
+          }),
+          user1isTyping: false,
+        },
+        { merge: true }
+      );
     } catch (error) {
       console.log("error sending msg", error);
     }
@@ -724,19 +731,31 @@ const ChatScreen = ({ navigation, route }) => {
     return () => clearInterval(intervalId);
   }, [recording]);
 
-  const handleTextInputChange = async (text) => {
+  const handleLongPress = (sendBy, msgId) => {
+    showAlert(sendBy, msgId);
+  };
+
+  const handleTyping = (text) => {
     setMessageInput(text);
-    const chatRef = doc(FIREBASE_DB, "chats", combinedChatId);
-    await updateDoc(chatRef, { user1isTyping: true }); //user2 will always be me (set in contacts)
+    const messageDocRef = doc(FIREBASE_DB, "chats", combinedChatId);
+    if (text) {
+      updateDoc(messageDocRef, { user1isTyping: true });
+      setIsTyping(true);
+    } else {
+      updateDoc(messageDocRef, { user1isTyping: false });
+      setIsTyping(false);
+    }
   };
 
   return (
     <>
       <ImageBackground
         style={styles.imageBackground}
-        source={require("../../assets/chat-bg.png")}
+        source={require("../../../assets/chat-bg.png")}
       >
         <FlatList
+          removeClippedSubviews={true}
+          windowSize={5}
           ref={flatListRef}
           onContentSizeChange={() =>
             flatListRef?.current?.scrollToEnd({ animated: true })
@@ -758,7 +777,7 @@ const ChatScreen = ({ navigation, route }) => {
                 }}
               >
                 <TouchableWithoutFeedback
-                  onLongPress={() => showAlert(item?.sendBy, item?.msgId)}
+                  onLongPress={() => handleLongPress(item?.sendBy, item.msgId)}
                 >
                   <View
                     style={{
@@ -779,7 +798,6 @@ const ChatScreen = ({ navigation, route }) => {
                     <View>
                       {item.type === "audio" && (
                         <View
-                          key={key}
                           style={{
                             width: 200,
                             height: responsiveHeight(7),
@@ -872,7 +890,10 @@ const ChatScreen = ({ navigation, route }) => {
                         >
                           <View>
                             <Image
-                              source={{ uri: item?.mediaURL }}
+                              source={item?.mediaURL}
+                              placeholder={blurhash}
+                              transition={1000}
+                              contentFit="cover"
                               style={{
                                 width: 250,
                                 height: 250,
@@ -951,9 +972,6 @@ const ChatScreen = ({ navigation, route }) => {
           }}
         />
 
-        {imageSending && <ActivityIndicator size={"large"} color={"red"} />}
-
-        {audioSending && <ActivityIndicator size={"large"} color={"blue"} />}
         <View
           style={{
             flexDirection: "row",
@@ -1000,7 +1018,6 @@ const ChatScreen = ({ navigation, route }) => {
               <TouchableOpacity activeOpacity={0.8} onPress={stopRecording}>
                 <MaterialCommunityIcons
                   name={"send"}
-                  // color={"#5b41f0"}
                   color={"#fff"}
                   size={26}
                   style={{
@@ -1028,7 +1045,7 @@ const ChatScreen = ({ navigation, route }) => {
                 paddingLeft: 42,
               }}
               value={messageInput}
-              onChangeText={handleTextInputChange}
+              onChangeText={handleTyping}
               placeholder={`${
                 messageInput === "" ? "Type your message" : messageInput
               }`}
@@ -1059,18 +1076,6 @@ const ChatScreen = ({ navigation, route }) => {
             }}
           />
           <TouchableWithoutFeedback onPress={openGallery}>
-            {/* {mediaUploading ? (
-              <ActivityIndicator
-                style={{
-                  position: "absolute",
-                  alignSelf: "center",
-                  bottom: responsiveHeight(3.2),
-                  right: responsiveWidth(25),
-                }}
-                color={"#5843d1"}
-                size={"large"}
-              />
-            ) : ( */}
             <MaterialCommunityIcons
               name={!isStillRecording ? "image-multiple" : ""}
               size={26}
@@ -1082,22 +1087,9 @@ const ChatScreen = ({ navigation, route }) => {
                 right: responsiveWidth(32),
               }}
             />
-            {/* )} */}
           </TouchableWithoutFeedback>
 
           <TouchableWithoutFeedback onPress={openCamera}>
-            {/* {mediaUploading ? (
-              <ActivityIndicator
-                style={{
-                  position: "absolute",
-                  alignSelf: "center",
-                  bottom: responsiveHeight(3.2),
-                  right: responsiveWidth(24),
-                }}
-                color={"#5843d1"}
-                size={"large"}
-              />
-            ) : ( */}
             <MaterialCommunityIcons
               name={!isStillRecording ? "camera" : ""}
               size={28}
@@ -1109,21 +1101,8 @@ const ChatScreen = ({ navigation, route }) => {
                 right: responsiveWidth(24),
               }}
             />
-            {/* )} */}
           </TouchableWithoutFeedback>
           <TouchableWithoutFeedback onPress={startRecording}>
-            {/* {audioUploading ? (
-              <ActivityIndicator
-                style={{
-                  position: "absolute",
-                  alignSelf: "center",
-                  bottom: responsiveHeight(3.2),
-                  right: responsiveWidth(15),
-                }}
-                color={"#5b41f0"}
-                size={"large"}
-              />
-            ) : ( */}
             <MaterialCommunityIcons
               name={!isStillRecording ? "microphone" : ""}
               size={30}
@@ -1135,22 +1114,19 @@ const ChatScreen = ({ navigation, route }) => {
                 right: responsiveWidth(15),
               }}
             />
-            {/* )} */}
           </TouchableWithoutFeedback>
 
-          {!isStillRecording && (
-            <TouchableOpacity
-              activeOpacity={0.8}
-              onPress={() => sendTextMessage(friendUniqueID)}
-            >
-              <MaterialCommunityIcons
-                name={"send-circle"}
-                color={"#5b41f0"}
-                size={49}
-                style={{ marginBottom: 16 }}
-              />
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => sendTextMessage(friendUniqueID)}
+          >
+            <MaterialCommunityIcons
+              name={"send-circle"}
+              color={"#5b41f0"}
+              size={49}
+              style={{ marginBottom: 16 }}
+            />
+          </TouchableOpacity>
         </View>
       </ImageBackground>
     </>

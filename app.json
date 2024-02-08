@@ -8,11 +8,11 @@
     "userInterfaceStyle": "light",
     "plugins": [
       "expo-av",
-      "@react-native-firebase/app", 
+      "@react-native-firebase/app",
       "@react-native-firebase/auth",
       "expo-image-picker",
       "expo-build-properties"
-      ],
+    ],
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
@@ -28,10 +28,20 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "08e633a6-46f1-4ce4-bc08-dc4efa6ed2e2"
+      }
+    },
+    "owner": "mirfan23"
   }
 }

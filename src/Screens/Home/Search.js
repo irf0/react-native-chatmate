@@ -27,7 +27,7 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
-import { FIREBASE_DB } from "../../Firebase";
+import { FIREBASE_DB } from "../../../Firebase";
 import {
   responsiveFontSize,
   responsiveHeight,
@@ -368,7 +368,7 @@ const Search = () => {
               }}
             >
               <Image
-                source={require("../../assets/nothingtodo.png")}
+                source={require("../../../assets/nothingtodo.png")}
                 resizeMode="contain"
                 style={{
                   height: 400,

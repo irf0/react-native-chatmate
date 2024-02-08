@@ -23,7 +23,7 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
-import { FIREBASE_DB } from "../../Firebase";
+import { FIREBASE_DB } from "../../../Firebase";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { responsiveHeight } from "react-native-responsive-dimensions";
